@@ -1,4 +1,5 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
+import router from '@/router'
 
 export function handleApiError(error, showRetry = true) {
   console.error('API Error:', error)
@@ -12,7 +13,12 @@ export function handleApiError(error, showRetry = true) {
         break
       case 401:
         message = '未授权，请重新登录'
-        break
+        // 401 自动跳转到登录页，清除所有登录数据
+        localStorage.removeItem('token')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        router.push('/login')
+        return
       case 403:
         message = '无权限访问'
         break
@@ -32,14 +38,19 @@ export function handleApiError(error, showRetry = true) {
   if (showRetry) {
     ElMessageBox.confirm(
       `${message}，是否重试？`,
-      '提示',
       {
+        title: '提示',
         confirmButtonText: '重试',
         cancelButtonText: '取消',
         type: 'warning'
       }
     ).then(() => {
-      window.location.reload()
+      // 重新发送当前请求（由调用方传入 retryCallback）
+      if (error.config && error.config._retryCallback) {
+        error.config._retryCallback()
+      } else {
+        ElMessage.warning('请刷新页面后重试')
+      }
     }).catch(() => {
       // 用户取消重试
     })

@@ -11,7 +11,7 @@ export const useOrderStore = defineStore('order', () => {
     loading.value = true
     try {
       const result = await orderApi.getInboundList(params)
-      inboundOrders.value = result.content || result
+      inboundOrders.value = result.data?.content || result.content || []
     } catch (error) {
       console.error('Failed to fetch inbound orders:', error)
     } finally {
@@ -23,7 +23,7 @@ export const useOrderStore = defineStore('order', () => {
     loading.value = true
     try {
       const result = await orderApi.getOutboundList(params)
-      outboundOrders.value = result.content || result
+      outboundOrders.value = result.data?.content || result.content || []
     } catch (error) {
       console.error('Failed to fetch outbound orders:', error)
     } finally {

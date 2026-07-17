@@ -1,0 +1,17 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  security:
+    allow-h2-console: false
+
+logging:
+  level:
+    root: INFO
+    com.example.smartvisionstock: DEBUG
+    org.hibernate.SQL: DEBUG

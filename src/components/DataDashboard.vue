@@ -226,9 +226,9 @@ const locateFirst = () => {
 
 const stats = ref({
   totalGoods: 0,
-  totalLocations: 144,
+  totalLocations: 0,
   usedLocations: 0,
-  emptyLocations: 144,
+  emptyLocations: 0,
   normalCount: 0,
   warningCount: 0,
   errorCount: 0
@@ -236,7 +236,7 @@ const stats = ref({
 
 const alerts = ref([])
 
-const usedPercent = computed(() => Math.round((stats.value.usedLocations / stats.value.totalLocations) * 100))
+const usedPercent = computed(() => stats.value.totalLocations > 0 ? Math.round((stats.value.usedLocations / stats.value.totalLocations) * 100) : 0)
 const normalPercent = computed(() => stats.value.totalLocations > 0 ? Math.round((stats.value.normalCount / stats.value.totalLocations) * 100) : 0)
 const warningPercent = computed(() => stats.value.totalLocations > 0 ? Math.round((stats.value.warningCount / stats.value.totalLocations) * 100) : 0)
 const emptyPercent = computed(() => stats.value.totalLocations > 0 ? Math.round((stats.value.emptyLocations / stats.value.totalLocations) * 100) : 0)
@@ -244,7 +244,7 @@ const errorPercent = computed(() => stats.value.totalLocations > 0 ? Math.round(
 
 const updateStats = () => {
   const locs = props.locations || []
-  stats.value.totalLocations = locs.length || 144
+  stats.value.totalLocations = locs.length || 0
   stats.value.usedLocations = locs.filter(l => l.status !== 0).length
   stats.value.emptyLocations = locs.filter(l => l.status === 0).length
   stats.value.normalCount = locs.filter(l => l.status === 1).length

@@ -19,6 +19,7 @@ public interface OrderService {
     void auditOutboundOrder(Long orderId);
     void pickOutboundOrder(Long orderId);
     void confirmOutboundOrder(Long orderId);
+    void cancelOutboundOrder(Long orderId);
     Page<OutboundOrderDTO> getOutboundOrders(Integer page, Integer size, String orderNo, String status, String type, LocalDateTime startTime, LocalDateTime endTime);
     OutboundOrderDTO getOutboundOrder(Long orderId);
 }

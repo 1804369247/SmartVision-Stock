@@ -1,12 +1,14 @@
 <template>
-  <el-dialog 
-    v-model="visible" 
-    title="欢迎使用 SmartVision Stock" 
-    width="500px" 
-    :close-on-click-modal="false"
-    :show-close="false"
-    :modal-class="'guide-modal'"
-  >
+  <div v-if="visible" class="guide-overlay">
+    <el-dialog 
+      v-model="visible" 
+      title="欢迎使用 SmartVision Stock" 
+      width="500px" 
+      :close-on-click-modal="false"
+      :show-close="false"
+      :modal="false"
+      class="guide-dialog"
+    >
     <div class="guide-content">
       <div class="step-indicator">
         <span 
@@ -46,6 +48,7 @@
       </div>
     </div>
   </el-dialog>
+  </div>
 </template>
 
 <script setup>
@@ -133,7 +136,20 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.guide-modal {
+.guide-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+.guide-dialog {
   background: rgba(10, 10, 20, 0.95);
 }
 .guide-content {

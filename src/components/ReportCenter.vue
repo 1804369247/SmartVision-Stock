@@ -23,7 +23,7 @@
           </el-menu-item>
         </el-menu>
       </div>
-      
+
       <!-- 右侧内容 -->
       <div class="report-content">
         <!-- 筛选区域 -->
@@ -39,31 +39,53 @@
               format="YYYY-MM-DD"
               value-format="YYYY-MM-DD"
               style="width: 280px;"
+              :disabled="currentReport === 'inventory' || currentReport === 'alert'"
             />
-            <el-select v-model="selectedArea" placeholder="选择库区" clearable size="small" style="width: 120px;">
+            <el-select v-model="selectedArea" placeholder="选择库区" clearable size="small" style="width: 120px;" @change="loadReportData">
               <el-option label="全部" value="" />
               <el-option label="A区" value="A" />
               <el-option label="B区" value="B" />
               <el-option label="C区" value="C" />
             </el-select>
-            <el-select v-model="selectedGoodsType" placeholder="货物类型" clearable size="small" style="width: 150px;">
-              <el-option label="全部类型" value="" />
-              <el-option label="电子设备" value="电子设备" />
-              <el-option label="机械零件" value="机械零件" />
-              <el-option label="原材料" value="原材料" />
-              <el-option label="其他" value="其他" />
+            <el-input
+              v-if="currentReport === 'inventory' || currentReport === 'flow'"
+              v-model="searchKeyword"
+              placeholder="搜索货物名称"
+              size="small"
+              style="width: 150px;"
+              clearable
+              @change="loadReportData"
+            />
+            <el-select v-if="currentReport === 'flow'" v-model="selectedType" placeholder="出入库类型" clearable size="small" style="width: 120px;" @change="loadReportData">
+              <el-option label="全部" value="" />
+              <el-option label="入库" value="IN" />
+              <el-option label="出库" value="OUT" />
+              <el-option label="移库" value="MOVE" />
             </el-select>
-            <el-button type="primary" size="small" @click="queryReport">
+            <el-button type="primary" size="small" @click="loadReportData">
               <el-icon class="el-icon--left"><Search /></el-icon>
               查询
             </el-button>
             <el-button size="small" @click="resetFilter">重置</el-button>
           </div>
         </div>
-        
-        <!-- 报表标题 -->
+
+        <!-- 报表标题 + KPI -->
         <div class="report-header">
-          <h4>{{ reportTitle }}</h4>
+          <div class="header-left">
+            <h4>{{ reportTitle }}</h4>
+            <div class="kpi-tags" v-if="kpiData">
+              <el-tag v-if="currentReport === 'inventory' || currentReport === 'utilization'" type="success" size="small">库位 {{ kpiData.totalLocations }} 个</el-tag>
+              <el-tag v-if="currentReport === 'inventory' || currentReport === 'utilization'" type="warning" size="small">已用 {{ kpiData.usedLocations }} 个</el-tag>
+              <el-tag v-if="currentReport === 'inventory'" type="info" size="small">在库 {{ kpiData.totalQuantity }} 件</el-tag>
+              <el-tag v-if="currentReport === 'flow'" type="success" size="small">今日入库 {{ kpiData.todayInbound || 0 }} 次</el-tag>
+              <el-tag v-if="currentReport === 'flow'" type="danger" size="small">今日出库 {{ kpiData.todayOutbound || 0 }} 次</el-tag>
+              <el-tag v-if="currentReport === 'flow'" type="info" size="small">移库 {{ kpiData.todayMove || 0 }} 次</el-tag>
+              <el-tag v-if="currentReport === 'alert'" type="danger" size="small">预警 {{ kpiData.totalAlerts || 0 }} 条</el-tag>
+              <el-tag v-if="currentReport === 'alert'" type="warning" size="small">库存预警 {{ kpiData.stockWarningCount || 0 }}</el-tag>
+              <el-tag v-if="currentReport === 'alert'" type="danger" size="small">过期预警 {{ kpiData.expiryWarningCount || 0 }}</el-tag>
+            </div>
+          </div>
           <div class="report-actions">
             <el-button type="primary" size="small" @click="exportReport">
               <el-icon class="el-icon--left"><Download /></el-icon>
@@ -75,16 +97,43 @@
             </el-button>
           </div>
         </div>
-        
+
+        <!-- 加载状态 -->
+        <div v-if="loading" class="loading-mask">
+          <el-icon class="is-loading" style="font-size: 32px; color: #409eff;"><Loading /></el-icon>
+          <span style="margin-top: 8px; color: #aaa;">加载中...</span>
+        </div>
+
         <!-- 报表数据 -->
-        <div class="report-table">
-          <el-table :data="reportData" border size="small" max-height="400">
+        <div class="report-table" v-else>
+          <el-table
+            :data="reportData"
+            border
+            size="small"
+            max-height="420"
+            :empty-text="emptyText"
+          >
+            <!-- 库存台账 -->
             <template v-if="currentReport === 'inventory'">
-              <el-table-column prop="locationCode" label="库位编码" width="100" />
-              <el-table-column prop="goodsName" label="货物名称" />
-              <el-table-column prop="batchNo" label="批次号" width="100" />
-              <el-table-column prop="quantity" label="数量" width="80" />
-              <el-table-column prop="inTime" label="入库时间" width="160" />
+              <el-table-column prop="locationCode" label="库位编码" width="100" fixed />
+              <el-table-column prop="area" label="分区" width="60" />
+              <el-table-column prop="attribute" label="属性" width="80">
+                <template #default="scope">{{ getAttributeText(scope.row.attribute) }}</template>
+              </el-table-column>
+              <el-table-column prop="goodsName" label="货物名称" min-width="120" />
+              <el-table-column prop="goodsCode" label="货物编码" width="100" />
+              <el-table-column prop="batchNo" label="批次号" width="130" />
+              <el-table-column prop="quantity" label="数量" width="70" />
+              <el-table-column prop="inTime" label="入库时间" width="150">
+                <template #default="scope">{{ formatDate(scope.row.inTime) }}</template>
+              </el-table-column>
+              <el-table-column prop="expiryDate" label="过期时间" width="120">
+                <template #default="scope">
+                  <span :class="{ 'expiry-warning': isExpiringSoon(scope.row.expiryDate) }">
+                    {{ formatDate(scope.row.expiryDate) }}
+                  </span>
+                </template>
+              </el-table-column>
               <el-table-column prop="status" label="状态" width="80">
                 <template #default="scope">
                   <el-tag :type="getStatusTag(scope.row.status)" size="small">
@@ -93,66 +142,92 @@
                 </template>
               </el-table-column>
             </template>
-            
+
+            <!-- 出入库流水 -->
             <template v-else-if="currentReport === 'flow'">
-              <el-table-column prop="orderNo" label="单据号" width="120" />
+              <el-table-column prop="orderNo" label="单号" width="150" />
               <el-table-column prop="type" label="类型" width="80">
                 <template #default="scope">
-                  <el-tag :type="scope.row.type === '入库' ? 'success' : 'danger'" size="small">
-                    {{ scope.row.type }}
+                  <el-tag :type="getTypeTag(scope.row.type)" size="small">
+                    {{ getTypeText(scope.row.type) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="goodsName" label="货物名称" />
-              <el-table-column prop="quantity" label="数量" width="80" />
+              <el-table-column prop="goodsName" label="货物名称" min-width="120" />
+              <el-table-column prop="goodsCode" label="货物编码" width="100" />
+              <el-table-column prop="batchNo" label="批次号" width="130" />
+              <el-table-column prop="quantity" label="数量" width="70" />
+              <el-table-column prop="fromLocationCode" label="源库位" width="100">
+                <template #default="scope">{{ scope.row.fromLocationCode || '-' }}</template>
+              </el-table-column>
+              <el-table-column prop="toLocationCode" label="目标库位" width="100">
+                <template #default="scope">{{ scope.row.toLocationCode || '-' }}</template>
+              </el-table-column>
               <el-table-column prop="operator" label="操作人" width="100" />
-              <el-table-column prop="time" label="时间" width="160" />
-            </template>
-            
-            <template v-else-if="currentReport === 'utilization'">
-              <el-table-column prop="area" label="库区" width="80" />
-              <el-table-column prop="totalLocations" label="总库位数" width="100" />
-              <el-table-column prop="usedLocations" label="已使用" width="100" />
-              <el-table-column prop="emptyLocations" label="空闲" width="80" />
-              <el-table-column prop="utilizationRate" label="利用率" width="100">
-                <template #default="scope">
-                  <span :class="scope.row.utilizationRate > 80 ? 'high-rate' : ''">
-                    {{ scope.row.utilizationRate }}%
-                  </span>
-                </template>
+              <el-table-column prop="operateTime" label="时间" width="150">
+                <template #default="scope">{{ formatDate(scope.row.operateTime) }}</template>
               </el-table-column>
             </template>
-            
+
+            <!-- 库位利用率 -->
+            <template v-else-if="currentReport === 'utilization'">
+              <el-table-column prop="area" label="库区" width="80" />
+              <el-table-column prop="totalLocations" label="总库位" width="90" />
+              <el-table-column prop="usedLocations" label="已使用" width="90" />
+              <el-table-column prop="emptyLocations" label="空闲" width="80" />
+              <el-table-column prop="frozenLocations" label="已冻结" width="80" />
+              <el-table-column prop="utilizationRate" label="利用率" width="90">
+                <template #default="scope">
+                  <el-progress
+                    :percentage="parseFloat(scope.row.utilizationRate)"
+                    :color="getProgressColor(scope.row.utilizationRate)"
+                    :stroke-width="8"
+                    :show-text="true"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column prop="totalQuantity" label="库存量" width="90" />
+            </template>
+
+            <!-- 预警报表 -->
             <template v-else-if="currentReport === 'alert'">
               <el-table-column prop="type" label="预警类型" width="100">
                 <template #default="scope">
-                  <el-tag :type="scope.row.type === '库存预警' ? 'warning' : 'danger'" size="small">
+                  <el-tag :type="getAlertTagType(scope.row.level)" size="small">
                     {{ scope.row.type }}
                   </el-tag>
                 </template>
               </el-table-column>
               <el-table-column prop="locationCode" label="库位" width="100" />
-              <el-table-column prop="goodsName" label="货物名称" />
-              <el-table-column prop="quantity" label="当前库存" width="100" />
+              <el-table-column prop="goodsName" label="货物名称" min-width="120" />
+              <el-table-column prop="goodsCode" label="货物编码" width="100" />
+              <el-table-column prop="quantity" label="当前库存" width="90" />
               <el-table-column prop="warningThreshold" label="预警阈值" width="100" />
-              <el-table-column prop="expiryDate" label="过期时间" width="160" />
+              <el-table-column prop="expiryDate" label="过期时间" width="120">
+                <template #default="scope">
+                  <span :class="{ 'expiry-warning': scope.row.type === '保质期预警' || scope.row.type === '已过期' }">
+                    {{ scope.row.expiryDate || '-' }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="frozenReason" label="备注" min-width="120">
+                <template #default="scope">{{ scope.row.frozenReason || '-' }}</template>
+              </el-table-column>
             </template>
           </el-table>
-        </div>
-        
-        <!-- 统计摘要 -->
-        <div class="summary-section" v-if="summaryData">
-          <div class="summary-item">
-            <span class="label">{{ summaryData.label1 }}</span>
-            <span class="value">{{ summaryData.value1 }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="label">{{ summaryData.label2 }}</span>
-            <span class="value">{{ summaryData.value2 }}</span>
-          </div>
-          <div class="summary-item">
-            <span class="label">{{ summaryData.label3 }}</span>
-            <span class="value">{{ summaryData.value3 }}</span>
+
+          <!-- 分页 -->
+          <div class="pagination" v-if="currentReport === 'inventory' || currentReport === 'flow'">
+            <el-pagination
+              v-model:current-page="pagination.page"
+              v-model:page-size="pagination.size"
+              :total="pagination.total"
+              :page-sizes="[20, 50, 100, 200]"
+              layout="total, sizes, prev, pager, next"
+              @size-change="loadReportData"
+              @current-change="loadReportData"
+            />
+            <span class="pagination-info">共 {{ pagination.total }} 条</span>
           </div>
         </div>
       </div>
@@ -161,20 +236,28 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Download, Printer } from '@element-plus/icons-vue'
-
-const props = defineProps({
-  locations: { type: Array, default: () => [] }
-})
+import { Search, Download, Printer, Loading } from '@element-plus/icons-vue'
+import { reportApi } from '@/api/report'
+import { exportApi } from '@/api/export'
 
 const currentReport = ref('inventory')
 const dateRange = ref([])
 const selectedArea = ref('')
-const selectedGoodsType = ref('')
+const selectedType = ref('')
+const searchKeyword = ref('')
 const reportData = ref([])
-const summaryData = ref(null)
+const loading = ref(false)
+const emptyText = ref('暂无数据')
+
+const pagination = ref({
+  page: 0,
+  size: 50,
+  total: 0
+})
+
+const kpiData = ref(null)
 
 const reportTitle = computed(() => {
   const titles = {
@@ -188,67 +271,122 @@ const reportTitle = computed(() => {
 
 const selectReport = (index) => {
   currentReport.value = index
+  pagination.value = { page: 0, size: 50, total: 0 }
   loadReportData()
+  loadKpi()
 }
 
-const loadReportData = () => {
-  const mockData = {
-    inventory: [
-      { locationCode: 'A-01-01', goodsName: '电机轴承', batchNo: 'B20240501', quantity: 20, inTime: '2024-05-15 09:30:00', status: 1 },
-      { locationCode: 'A-01-02', goodsName: '控制器', batchNo: 'B20240502', quantity: 15, inTime: '2024-05-16 10:20:00', status: 1 },
-      { locationCode: 'B-02-01', goodsName: '电子元件', batchNo: 'B20240503', quantity: 5, inTime: '2024-05-10 14:00:00', status: 2 }
-    ],
-    flow: [
-      { orderNo: 'IN20240515001', type: '入库', goodsName: '电机轴承', quantity: 20, operator: '张三', time: '2024-05-15 09:30:00' },
-      { orderNo: 'OUT20240516001', type: '出库', goodsName: '控制器', quantity: 5, operator: '李四', time: '2024-05-16 14:20:00' },
-      { orderNo: 'IN20240517001', type: '入库', goodsName: '电子元件', quantity: 30, operator: '王五', time: '2024-05-17 11:00:00' }
-    ],
-    utilization: [
-      { area: 'A区', totalLocations: 50, usedLocations: 35, emptyLocations: 15, utilizationRate: 70 },
-      { area: 'B区', totalLocations: 50, usedLocations: 45, emptyLocations: 5, utilizationRate: 90 },
-      { area: 'C区', totalLocations: 50, usedLocations: 20, emptyLocations: 30, utilizationRate: 40 }
-    ],
-    alert: [
-      { type: '库存预警', locationCode: 'B-02-01', goodsName: '电子元件', quantity: 5, warningThreshold: 10, expiryDate: '-' },
-      { type: '保质期预警', locationCode: 'A-03-01', goodsName: '化工原料', quantity: 25, warningThreshold: '-', expiryDate: '2024-06-20' }
-    ]
+const loadReportData = async () => {
+  loading.value = true
+  emptyText.value = '加载中...'
+  reportData.value = []
+
+  try {
+    if (currentReport.value === 'inventory') {
+      const res = await reportApi.getInventoryReport({
+        area: selectedArea.value || undefined,
+        status: '',
+        goodsName: searchKeyword.value || undefined,
+        page: pagination.value.page,
+        size: pagination.value.size
+      })
+      reportData.value = res.data || []
+      pagination.value.total = res.total || 0
+      emptyText.value = '暂无数据'
+    } else if (currentReport.value === 'flow') {
+      const res = await reportApi.getInoutFlowReport({
+        type: selectedType.value || undefined,
+        goodsName: searchKeyword.value || undefined,
+        page: pagination.value.page,
+        size: pagination.value.size
+      })
+      reportData.value = res.data || []
+      pagination.value.total = res.total || 0
+      emptyText.value = '暂无数据'
+    } else if (currentReport.value === 'utilization') {
+      const res = await reportApi.getUtilizationReport({
+        area: selectedArea.value || undefined
+      })
+      reportData.value = res.data || []
+      pagination.value.total = reportData.value.length
+      if (res.summary) {
+        kpiData.value = { ...kpiData.value, ...res.summary }
+      }
+      emptyText.value = '暂无数据'
+    } else if (currentReport.value === 'alert') {
+      const res = await reportApi.getAlertsReport()
+      reportData.value = res.data || []
+      pagination.value.total = reportData.value.length
+      if (res.summary) {
+        kpiData.value = { ...kpiData.value, ...res.summary }
+      }
+      emptyText.value = '暂无数据'
+    }
+  } catch (e) {
+    emptyText.value = '加载失败: ' + (e.message || '未知错误')
+  } finally {
+    loading.value = false
   }
-  
-  reportData.value = mockData[currentReport.value] || []
-  
-  const summaryMocks = {
-    inventory: { label1: '总库位数', value1: '150', label2: '在库货物种类', value2: '45', label3: '总库存量', value3: '2,580' },
-    flow: { label1: '入库次数', value1: '28', label2: '出库次数', value2: '15', label3: '移库次数', value3: '7' },
-    utilization: { label1: '总库位数', value1: '150', label2: '利用率', value2: '66.7%', label3: '空闲库位', value3: '50' },
-    alert: { label1: '库存预警', value1: '8', label2: '保质期预警', value2: '3', label3: '总预警数', value3: '11' }
-  }
-  summaryData.value = summaryMocks[currentReport.value]
 }
 
-const queryReport = () => {
-  ElMessage.success('报表查询成功')
-  loadReportData()
+const loadKpi = async () => {
+  try {
+    const res = await reportApi.getKpi()
+    kpiData.value = res.data
+  } catch (e) {
+    // ignore
+  }
 }
 
 const resetFilter = () => {
   dateRange.value = []
   selectedArea.value = ''
-  selectedGoodsType.value = ''
+  selectedType.value = ''
+  searchKeyword.value = ''
+  pagination.value = { page: 0, size: 50, total: 0 }
   loadReportData()
 }
 
-const exportReport = () => {
-  ElMessage.success('报表导出中，请稍候...')
-  setTimeout(() => {
-    ElMessage.success('报表导出成功！')
-  }, 800)
+const exportReport = async () => {
+  try {
+    let blob
+    if (currentReport.value === 'inventory') {
+      blob = await exportApi.exportInventory({ area: selectedArea.value || undefined })
+    } else if (currentReport.value === 'flow') {
+      blob = await exportApi.exportInoutRecords({
+        type: selectedType.value || undefined,
+        goodsName: searchKeyword.value || undefined,
+        startTime: dateRange.value?.[0] || undefined,
+        endTime: dateRange.value?.[1] || undefined
+      })
+    } else {
+      blob = await exportApi.exportStatistics()
+    }
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `报表_${currentReport.value}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    link.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败')
+  }
 }
 
 const printReport = () => {
-  ElMessage.info('正在准备打印...')
-  setTimeout(() => {
-    ElMessage.success('打印任务已发送！')
-  }, 500)
+  window.print()
+}
+
+// 辅助方法
+const getAttributeText = (attr) => {
+  const map = { NORMAL: '普通', COLD: '冷藏', DANGEROUS: '危险品', VALUABLE: '高价值' }
+  return map[attr] || attr || '普通'
+}
+
+const getStatusText = (status) => {
+  const texts = { 0: '空闲', 1: '正常', 2: '预警', 3: '异常' }
+  return texts[status] || '未知'
 }
 
 const getStatusTag = (status) => {
@@ -256,26 +394,61 @@ const getStatusTag = (status) => {
   return tags[status] || 'info'
 }
 
-const getStatusText = (status) => {
-  const texts = { 0: '空闲', 1: '正常', 2: '预警', 3: '异常' }
-  return texts[status] || status
+const getTypeText = (type) => {
+  const map = { IN: '入库', OUT: '出库', MOVE: '移库' }
+  return map[type] || type
+}
+
+const getTypeTag = (type) => {
+  const map = { IN: 'success', OUT: 'danger', MOVE: 'primary' }
+  return map[type] || 'info'
+}
+
+const getAlertTagType = (level) => {
+  const map = { warning: 'warning', danger: 'danger', info: 'info' }
+  return map[level] || 'info'
+}
+
+const getProgressColor = (rate) => {
+  const r = parseFloat(rate)
+  if (r >= 80) return '#67c23a'
+  if (r >= 50) return '#e6a23c'
+  return '#909399'
+}
+
+const formatDate = (date) => {
+  if (!date) return '-'
+  try {
+    const d = new Date(date)
+    return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return '-'
+  }
+}
+
+const isExpiringSoon = (date) => {
+  if (!date) return false
+  try {
+    const expiry = new Date(date).getTime()
+    return expiry - Date.now() < 7 * 24 * 60 * 60 * 1000
+  } catch {
+    return false
+  }
 }
 
 onMounted(() => {
   loadReportData()
+  loadKpi()
 })
 </script>
 
 <style scoped>
 .report-center {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
+  padding: 12px;
 }
 
 .report-layout {
   display: flex;
-  height: 100%;
   gap: 12px;
 }
 
@@ -284,6 +457,7 @@ onMounted(() => {
   background: rgba(25, 25, 35, 0.6);
   border-radius: 8px;
   padding: 12px;
+  flex-shrink: 0;
 }
 
 .menu-title {
@@ -325,24 +499,35 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 .filter-section {
   background: rgba(25, 25, 35, 0.6);
   border-radius: 8px;
   padding: 12px;
+  flex-shrink: 0;
 }
 
 .filter-row {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .report-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .report-header h4 {
@@ -351,9 +536,16 @@ onMounted(() => {
   font-size: 14px;
 }
 
+.kpi-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .report-actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .report-table {
@@ -362,41 +554,40 @@ onMounted(() => {
   padding: 12px;
   flex: 1;
   overflow: hidden;
+  position: relative;
+  min-height: 200px;
 }
 
 .report-table :deep(.el-table) {
   background: transparent;
 }
 
-.high-rate {
-  color: #e6a23c;
-  font-weight: bold;
-}
-
-.summary-section {
+.loading-mask {
+  position: absolute;
+  inset: 0;
   display: flex;
-  gap: 20px;
-  background: rgba(25, 25, 35, 0.6);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(25, 25, 35, 0.7);
   border-radius: 8px;
-  padding: 12px;
+  z-index: 10;
 }
 
-.summary-item {
-  flex: 1;
-  text-align: center;
-}
-
-.summary-item .label {
-  display: block;
-  font-size: 12px;
-  color: #888;
-  margin-bottom: 4px;
-}
-
-.summary-item .value {
-  display: block;
-  font-size: 18px;
+.expiry-warning {
+  color: #ff6b6b;
   font-weight: bold;
-  color: #409eff;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.pagination-info {
+  color: #aaa;
+  font-size: 12px;
 }
 </style>

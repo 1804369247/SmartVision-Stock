@@ -9,6 +9,8 @@ import com.example.smartvisionstock.dto.response.OutboundOrderItemDTO;
 import com.example.smartvisionstock.entity.*;
 import com.example.smartvisionstock.repository.*;
 import com.example.smartvisionstock.service.OrderService;
+import com.example.smartvisionstock.service.StockReservationService;
+import com.example.smartvisionstock.util.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -20,11 +22,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Service
 public class OrderServiceImpl implements OrderService {
+
+    // 订单号序列号（进程内递增，防止同秒并发重号）
+    private static final AtomicLong ORDER_SEQ = new AtomicLong(0);
 
     @Autowired
     private InboundOrderRepository inboundOrderRepository;
@@ -52,6 +60,9 @@ public class OrderServiceImpl implements OrderService {
     
     @Autowired
     private StorageLocationRepository storageLocationRepository;
+
+    @Autowired
+    private StockReservationService reservationService;
 
     @Override
     @Transactional
@@ -108,24 +119,44 @@ public class OrderServiceImpl implements OrderService {
 
         List<InboundOrderItem> items = inboundOrderItemRepository.findByOrderId(orderId);
         
+        // 记录本次入库已处理的库位：key=locationId, value=已创建的 GoodsInstance
+        // 解决多个明细指向同一库位时后面覆盖前面的问题
+        Map<Long, GoodsInstance> locationInstanceMap = new HashMap<>();
+        
         for (var item : items) {
-            Goods goods = goodsRepository.findById(item.getGoodsId()).orElse(null);
             StorageLocation location = null;
             if (item.getLocationId() != null) {
                 location = storageLocationRepository.findById(item.getLocationId()).orElse(null);
             }
             
-            GoodsInstance instance = new GoodsInstance();
-            instance.setGoodsId(item.getGoodsId());
-            instance.setLocationId(item.getLocationId());
-            instance.setBatchNo(item.getBatchNo());
-            instance.setQuantity(item.getQuantity());
-            instance.setInTime(LocalDateTime.now());
-            instance.setExpiryDate(item.getExpiryDate());
-            instance.setFrozen(false);
-            instance.setOperator("admin");
+            // 同一库位且同一商品 → 合并库存，避免覆盖
+            GoodsInstance instance = null;
+            if (item.getLocationId() != null) {
+                instance = locationInstanceMap.get(item.getLocationId());
+                if (instance != null && instance.getGoodsId().equals(item.getGoodsId())) {
+                    // 同库位同商品：累加数量
+                    instance.setQuantity(instance.getQuantity() + item.getQuantity());
+                    instance = goodsInstanceRepository.save(instance);
+                }
+            }
             
-            instance = goodsInstanceRepository.save(instance);
+            if (instance == null) {
+                // 新建货物实例
+                instance = new GoodsInstance();
+                instance.setGoodsId(item.getGoodsId());
+                instance.setLocationId(item.getLocationId());
+                instance.setBatchNo(item.getBatchNo());
+                instance.setQuantity(item.getQuantity());
+                instance.setInTime(LocalDateTime.now());
+                instance.setExpiryDate(item.getExpiryDate());
+                instance.setFrozen(false);
+                instance.setOperator(UserContext.getCurrentUsernameOrDefault("admin"));
+                instance = goodsInstanceRepository.save(instance);
+                
+                if (item.getLocationId() != null) {
+                    locationInstanceMap.put(item.getLocationId(), instance);
+                }
+            }
 
             if (location != null) {
                 location.setCurrentGoodsInstanceId(instance.getId());
@@ -144,7 +175,9 @@ public class OrderServiceImpl implements OrderService {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createTime"));
         Page<InboundOrder> orderPage;
         
-        if (status != null && !status.isEmpty()) {
+        if (orderNo != null && !orderNo.isEmpty()) {
+            orderPage = inboundOrderRepository.findByOrderNoContaining(orderNo, pageable);
+        } else if (status != null && !status.isEmpty()) {
             orderPage = inboundOrderRepository.findByStatus(status, pageable);
         } else if (type != null && !type.isEmpty()) {
             orderPage = inboundOrderRepository.findByType(type, pageable);
@@ -153,14 +186,7 @@ public class OrderServiceImpl implements OrderService {
         } else {
             orderPage = inboundOrderRepository.findAll(pageable);
         }
-        
-        if (orderNo != null && !orderNo.isEmpty()) {
-            List<InboundOrder> filteredList = orderPage.getContent().stream()
-                    .filter(o -> o.getOrderNo().contains(orderNo))
-                    .collect(Collectors.toList());
-            orderPage = new PageImpl<>(filteredList, pageable, orderPage.getTotalElements());
-        }
-        
+
         return orderPage.map(this::convertToInboundDTO);
     }
 
@@ -214,6 +240,10 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus("AUDITING");
         order.setAuditTime(LocalDateTime.now());
         outboundOrderRepository.save(order);
+
+        // 审核通过即预占库存，锁定对应货物实例，防止并发超卖
+        List<OutboundOrderItem> items = outboundOrderItemRepository.findByOrderId(orderId);
+        reservationService.reserve(orderId, "OUTBOUND", items);
     }
 
     @Override
@@ -239,30 +269,76 @@ public class OrderServiceImpl implements OrderService {
         }
 
         List<OutboundOrderItem> items = outboundOrderItemRepository.findByOrderId(orderId);
-        
+
+        // 按货物实例 ID 升序统一加悲观写锁，避免多实例时不同订单加锁顺序不一致导致死锁
+        List<Long> instanceIds = items.stream()
+                .map(OutboundOrderItem::getGoodsInstanceId)
+                .distinct().sorted().collect(Collectors.toList());
+        Map<Long, GoodsInstance> locked = new HashMap<>();
+        for (Long id : instanceIds) {
+            locked.put(id, goodsInstanceRepository.findByIdForUpdate(id)
+                    .orElseThrow(() -> new RuntimeException("出库明细对应的货物实例不存在，instanceId=" + id)));
+        }
+
+        // ---- 第一步：预校验所有明细可用库存是否充足（扣除他人已预占后）----
+        // 本订单自身的预占不计入占用，因此 available 反映"真正可动用的库存"
         for (var item : items) {
-            GoodsInstance instance = goodsInstanceRepository.findById(item.getGoodsInstanceId()).orElse(null);
-            if (instance == null) continue;
-            
+            GoodsInstance instance = locked.get(item.getGoodsInstanceId());
+            if (instance.isFrozen()) {
+                throw new RuntimeException("货物实例已被冻结，无法出库，instanceId=" + item.getGoodsInstanceId());
+            }
+            int reservedByOthers = reservationService.getReservedQuantityExcludeOrder(instance.getId(), orderId);
+            int available = instance.getQuantity() - reservedByOthers;
+            if (available < item.getQuantity()) {
+                throw new RuntimeException(
+                        String.format("库存不足：货物实例[%d]当前库存%d，他人已预占%d，可用%d，需出库%d",
+                                instance.getId(), instance.getQuantity(), reservedByOthers, available, item.getQuantity()));
+            }
+        }
+
+        // ---- 第二步：在悲观写锁保护下执行实际扣减 ----
+        for (var item : items) {
+            GoodsInstance instance = locked.get(item.getGoodsInstanceId());
             int newQuantity = instance.getQuantity() - item.getQuantity();
-            if (newQuantity <= 0) {
+            if (newQuantity == 0) {
+                // 库存清零 → 删除实例并释放库位
+                Long locId = instance.getLocationId();
                 goodsInstanceRepository.delete(instance);
-                
-                StorageLocation location = storageLocationRepository.findById(instance.getLocationId()).orElse(null);
-                if (location != null) {
-                    location.setCurrentGoodsInstanceId(null);
-                    location.setStatus(0);
-                    storageLocationRepository.save(location);
+                if (locId != null) {
+                    storageLocationRepository.findById(locId).ifPresent(location -> {
+                        location.setCurrentGoodsInstanceId(null);
+                        location.setStatus(0);
+                        storageLocationRepository.save(location);
+                    });
                 }
             } else {
                 instance.setQuantity(newQuantity);
                 instance.setOutTime(LocalDateTime.now());
+                // 实体已在事务中且被锁，Hibernate 会在事务提交时自动 flush；
+                // 显式 save 以兼容非脏检查场景
                 goodsInstanceRepository.save(instance);
             }
         }
 
         order.setStatus("COMPLETED");
         order.setConfirmTime(LocalDateTime.now());
+        outboundOrderRepository.save(order);
+
+        // 出库确认成功 → 消耗（核销）本订单的库存预占
+        reservationService.consumeByOrder(orderId);
+    }
+
+    @Override
+    @Transactional
+    public void cancelOutboundOrder(Long orderId) {
+        OutboundOrder order = outboundOrderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("出库单不存在"));
+        if ("COMPLETED".equals(order.getStatus())) {
+            throw new RuntimeException("已出库的单据不可取消");
+        }
+        // 释放该订单占用的库存预占
+        reservationService.releaseByOrder(orderId);
+        order.setStatus("CANCELLED");
         outboundOrderRepository.save(order);
     }
 
@@ -271,7 +347,9 @@ public class OrderServiceImpl implements OrderService {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createTime"));
         Page<OutboundOrder> orderPage;
         
-        if (status != null && !status.isEmpty()) {
+        if (orderNo != null && !orderNo.isEmpty()) {
+            orderPage = outboundOrderRepository.findByOrderNoContaining(orderNo, pageable);
+        } else if (status != null && !status.isEmpty()) {
             orderPage = outboundOrderRepository.findByStatus(status, pageable);
         } else if (type != null && !type.isEmpty()) {
             orderPage = outboundOrderRepository.findByType(type, pageable);
@@ -280,14 +358,7 @@ public class OrderServiceImpl implements OrderService {
         } else {
             orderPage = outboundOrderRepository.findAll(pageable);
         }
-        
-        if (orderNo != null && !orderNo.isEmpty()) {
-            List<OutboundOrder> filteredList = orderPage.getContent().stream()
-                    .filter(o -> o.getOrderNo().contains(orderNo))
-                    .collect(Collectors.toList());
-            orderPage = new PageImpl<>(filteredList, pageable, orderPage.getTotalElements());
-        }
-        
+
         return orderPage.map(this::convertToOutboundDTO);
     }
 
@@ -418,7 +489,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private String generateOrderNo(String prefix) {
-        return prefix + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        // 格式：前缀 + 年月日时分秒 + 4位序列号（解决同秒并发重号问题）
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        long seq = ORDER_SEQ.incrementAndGet();
+        return String.format("%s%s%06d", prefix, timestamp, seq % 1000000);
     }
 
     private String getStatusText(String status) {

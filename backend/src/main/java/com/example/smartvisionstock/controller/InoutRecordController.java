@@ -1,6 +1,7 @@
 package com.example.smartvisionstock.controller;
 
 import com.example.smartvisionstock.dto.request.InoutRecordQueryRequest;
+import com.example.smartvisionstock.dto.response.ApiResponse;
 import com.example.smartvisionstock.dto.response.InoutRecordDTO;
 import com.example.smartvisionstock.dto.response.ReplayRecordDTO;
 import com.example.smartvisionstock.service.StockService;
@@ -15,14 +16,13 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/inout")
-@CrossOrigin(origins = "*")
 public class InoutRecordController {
 
     @Autowired
     private StockService stockService;
 
     @GetMapping("/records")
-    public Map<String, Object> getInoutRecords(
+    public ApiResponse<Map<String, Object>> getInoutRecords(
             @RequestParam(required = false) String goodsName,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
@@ -49,11 +49,11 @@ public class InoutRecordController {
         result.put("currentPage", recordPage.getNumber());
         result.put("pageSize", recordPage.getSize());
 
-        return result;
+        return ApiResponse.success(result);
     }
 
     @GetMapping("/replay/{recordId}")
-    public ReplayRecordDTO getReplayRecord(@PathVariable Long recordId) {
-        return stockService.getReplayRecord(recordId);
+    public ApiResponse<ReplayRecordDTO> getReplayRecord(@PathVariable Long recordId) {
+        return ApiResponse.success(stockService.getReplayRecord(recordId));
     }
 }

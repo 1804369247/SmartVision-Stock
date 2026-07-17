@@ -162,11 +162,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { locationApi, stockApi } from '../api'
 
 const props = defineProps({
-  subPage: { type: String, required: true },
+  subPage: { type: String, default: 'query' },
   locations: { type: Array, default: () => [] }
 })
 
@@ -234,8 +235,8 @@ const totalDiff = computed(() => {
 
 const refreshData = async () => {
   try {
-    const res = await fetch('/api/locations')
-    tableData.value = await res.json()
+    const res = await locationApi.getAll()
+    tableData.value = Array.isArray(res) ? res : (res.data?.content || res.data || [])
     
     warningData.value = []
     tableData.value.forEach(loc => {
@@ -322,17 +323,61 @@ const getDiffClass = (row) => {
   return ''
 }
 
-const submitCount = () => {
+const submitCount = async () => {
   const diffItems = countLocations.value.filter(l => getDiff(l) !== 0)
-  if (diffItems.length > 0) {
-    ElMessage.success(`盘点完成，发现 ${diffItems.length} 个差异，已更新3D库存模型！`)
-  } else {
-    ElMessage.success('盘点完成，无差异，已更新3D库存模型！')
+  if (diffItems.length === 0) {
+    ElMessage.success('盘点完成，无差异')
+    return
+  }
+
+  try {
+        let successCount = 0
+        for (const item of diffItems) {
+          const diff = getDiff(item)
+          try {
+            if (!item.goodsInstanceId) {
+              console.warn(`跳过库位 ${item.locationCode}: 无关联货物实例`)
+              continue
+            }
+            const result = await stockApi.adjust({ goodsInstanceId: item.goodsInstanceId, quantity: diff })
+            if (result.code === 200) {
+              successCount++
+            }
+          } catch (e) {
+            console.error(`盘点调整失败: ${item.locationCode}`, e)
+          }
+        }
+    ElMessage.success(`盘点完成，已调整 ${successCount}/${diffItems.length} 个差异项，3D库存模型已更新！`)
+    refreshData()
+  } catch (e) {
+    ElMessage.error('提交盘点结果失败')
   }
 }
 
-const exportCount = () => {
-  ElMessage.info('导出盘点表功能开发中')
+const exportCount = async () => {
+  try {
+    if (countLocations.value.length === 0) {
+      ElMessage.warning('请先生成盘点任务')
+      return
+    }
+    const csvHeader = '库位编码,货物名称,批次号,系统数量,盘点数量,差异\n'
+    const csvRows = countLocations.value.map(l => {
+      return [l.locationCode, l.goodsName || '', l.batchNo || '', l.quantity, l.countQuantity || 0, getDiff(l)].join(',')
+    }).join('\n')
+    const csvContent = '\uFEFF' + csvHeader + csvRows
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `盘点表_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    ElMessage.success('盘点表已导出')
+  } catch (e) {
+    ElMessage.error('导出失败')
+  }
 }
 
 const submitTransfer = async () => {
@@ -343,17 +388,15 @@ const submitTransfer = async () => {
 
   try {
     const source = tableData.value.find(l => l.id === transferForm.value.sourceLocationId)
-    const res = await fetch('/api/move', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        goodsInstanceId: source.currentGoodsInstanceId,
-        targetLocationId: transferForm.value.targetLocationId
-      })
+    if (!source || !source.currentGoodsInstanceId) {
+      ElMessage.warning('源库位无货物，无法调拨')
+      return
+    }
+    const result = await stockApi.move({
+      goodsInstanceId: source.currentGoodsInstanceId,
+      targetLocationId: transferForm.value.targetLocationId
     })
-    
-    const result = await res.json()
-    if (result.success) {
+    if (result.code === 200) {
       ElMessage.success('调拨成功，已更新3D库存模型！')
       transferForm.value = { sourceLocationId: null, targetLocationId: null, quantity: 1 }
       refreshData()
@@ -366,17 +409,23 @@ const submitTransfer = async () => {
 }
 
 onMounted(() => refreshData())
+
+// 切换子 Tab 时自动重新加载数据
+watch(currentSubPage, () => {
+  tableData.value = []
+  refreshData()
+})
 </script>
 
 <style scoped>
-.module-page { padding: 12px; height: 100%; display: flex; flex-direction: column; }
+.module-page { padding: 12px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .page-header h3 { color: #fff; font-size: 14px; margin: 0; }
 .header-actions { display: flex; gap: 8px; }
 .search-bar { display: flex; gap: 12px; margin-bottom: 12px; }
 .search-bar .el-input { width: 150px; }
 .search-bar .el-select { width: 100px; }
-.data-table { flex: 1; overflow: auto; }
+.data-table { width: 100%; }
 .expiry-warning { color: #ff6b6b; }
 
 .stats-summary { display: flex; gap: 20px; margin-top: 15px; padding: 15px; background: rgba(30,30,50,0.7); border-radius: 10px; }

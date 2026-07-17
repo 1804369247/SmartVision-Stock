@@ -1,0 +1,41 @@
+#!/bin/sh
+# Maven Wrapper - Direct Java invocation for Windows Git Bash
+# Uses bundled Maven 3.9.9 at apache-maven-3.9.9/
+
+# Convert Git Bash path to Windows format (e.g. /f/foo -> F:/foo)
+to_win_path() {
+  echo "$1" | sed 's|^/\([a-zA-Z]\)/|\1:/|'
+}
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+MVN_HOME="$(to_win_path "$SCRIPT_DIR")/apache-maven-3.9.9"
+PROJECT_DIR="$(to_win_path "$SCRIPT_DIR")"
+
+if [ ! -f "$(to_win_path "$SCRIPT_DIR")/apache-maven-3.9.9/boot/plexus-classworlds-2.8.0.jar" ]; then
+  echo "ERROR: Maven 3.9.9 not found at $SCRIPT_DIR/apache-maven-3.9.9/" >&2
+  exit 1
+fi
+
+# Find Java
+if [ -n "${JAVA_HOME:-}" ]; then
+  JAVACMD="$(to_win_path "$JAVA_HOME")/bin/java"
+elif command -v java >/dev/null 2>&1; then
+  JAVACMD="java"
+else
+  echo "ERROR: JAVA_HOME is not set and no 'java' command found." >&2
+  exit 1
+fi
+
+# Change to project directory (where pom.xml lives)
+cd "$SCRIPT_DIR"
+
+exec "$JAVACMD" \
+  ${MAVEN_OPTS:-} \
+  ${MAVEN_DEBUG_OPTS:-} \
+  -classpath "$MVN_HOME/boot/plexus-classworlds-2.8.0.jar" \
+  "-Dclassworlds.conf=$MVN_HOME/bin/m2.conf" \
+  "-Dmaven.home=$MVN_HOME" \
+  "-Dmaven.multiModuleProjectDirectory=$PROJECT_DIR" \
+  org.codehaus.plexus.classworlds.launcher.Launcher \
+  ${MAVEN_ARGS:-} \
+  "$@"

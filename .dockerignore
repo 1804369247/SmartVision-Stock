@@ -1,0 +1,15 @@
+node_modules
+dist
+backend
+.workbuddy
+.git
+uploads
+.uploads
+qc
+start
+nul
+*.log
+frontend.log
+code-review-report.md
+优化方案.md
+测试报告.html

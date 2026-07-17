@@ -12,6 +12,7 @@ import java.util.List;
 @Repository
 public interface OutboundOrderRepository extends JpaRepository<OutboundOrder, Long> {
     Page<OutboundOrder> findByStatus(String status, Pageable pageable);
+    Page<OutboundOrder> findByOrderNoContaining(String orderNo, Pageable pageable);
     Page<OutboundOrder> findByCreateTimeBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
     Page<OutboundOrder> findByType(String type, Pageable pageable);
     OutboundOrder findByOrderNo(String orderNo);

@@ -11,16 +11,17 @@ export const useGoodsStore = defineStore('goods', () => {
     if (!searchKeyword.value) return goodsList.value
     const keyword = searchKeyword.value.toLowerCase()
     return goodsList.value.filter(item =>
-      item.name.toLowerCase().includes(keyword) ||
-      item.code.toLowerCase().includes(keyword) ||
-      item.spec.toLowerCase().includes(keyword)
+      (item.name?.toLowerCase() ?? '').includes(keyword) ||
+      (item.code?.toLowerCase() ?? '').includes(keyword) ||
+      (item.spec?.toLowerCase() ?? '').includes(keyword)
     )
   })
 
   const fetchGoods = async () => {
     loading.value = true
     try {
-      goodsList.value = await goodsApi.getAll()
+      const response = await goodsApi.getAll()
+      goodsList.value = response.data?.content || response.data || []
     } catch (error) {
       console.error('Failed to fetch goods:', error)
     } finally {

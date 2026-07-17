@@ -38,3 +38,16 @@ backend/*.iml
 # Temp files
 *.tmp
 *.temp
+
+# Project-internal / secrets / runtime data
+.workbuddy/
+backend/.jwt_secret
+backend/uploads/
+uploads/
+.uploads/
+backend/fakejdk/
+
+# Accidental / junk files
+nul
+qc
+start

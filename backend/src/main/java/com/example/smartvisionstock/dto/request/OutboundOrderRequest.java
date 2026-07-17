@@ -1,5 +1,7 @@
 package com.example.smartvisionstock.dto.request;
 
+import javax.validation.Valid;
+import javax.validation.constraints.NotEmpty;
 import java.util.List;
 
 public class OutboundOrderRequest {
@@ -7,6 +9,8 @@ public class OutboundOrderRequest {
     private Long customerId;
     private Long warehouseId;
     private String remark;
+    @NotEmpty(message = "出库明细不能为空")
+    @Valid
     private List<OutboundOrderItemRequest> items;
 
     public OutboundOrderRequest() {}

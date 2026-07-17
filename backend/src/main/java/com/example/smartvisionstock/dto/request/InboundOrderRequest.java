@@ -1,12 +1,18 @@
 package com.example.smartvisionstock.dto.request;
 
+import javax.validation.Valid;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotEmpty;
 import java.util.List;
 
 public class InboundOrderRequest {
+    @NotBlank(message = "入库类型不能为空")
     private String type;
     private Long supplierId;
     private Long warehouseId;
     private String remark;
+    @NotEmpty(message = "入库明细不能为空")
+    @Valid
     private List<InboundOrderItemRequest> items;
 
     public InboundOrderRequest() {}

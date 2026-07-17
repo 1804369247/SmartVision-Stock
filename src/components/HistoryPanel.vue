@@ -71,6 +71,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { logApi } from '../api/log'
 
 const records = ref([])
 const loading = ref(false)
@@ -89,15 +90,20 @@ const formatDateTime = (dt) => {
 const loadRecords = async () => {
   loading.value = true
   try {
-    const params = new URLSearchParams()
-    if (searchForm.goodsName) params.append('goodsName', searchForm.goodsName)
-    if (searchForm.type) params.append('type', searchForm.type)
-    params.append('page', pagination.currentPage - 1)
-    params.append('size', pagination.pageSize)
-    const res = await fetch(`/api/inout/records?${params}`)
-    const data = await res.json()
-    records.value = data.content || []
-    pagination.total = data.totalElements || 0
+    const params = {
+      page: pagination.currentPage - 1,
+      size: pagination.pageSize
+    }
+    if (searchForm.goodsName) params.goodsName = searchForm.goodsName
+    if (searchForm.type) params.type = searchForm.type
+    const res = await logApi.getInoutRecords(params)
+    if (res && res.data) {
+      records.value = res.data.content || []
+      pagination.total = res.data.totalElements || 0
+    } else {
+      records.value = res?.content || []
+      pagination.total = res?.totalElements || 0
+    }
   } catch (e) {
     console.error('loadRecords error:', e)
     ElMessage.error('加载记录失败，请检查后端服务')

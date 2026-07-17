@@ -1,6 +1,7 @@
 package com.example.smartvisionstock.entity;
 
 import javax.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "supplier")
@@ -30,6 +31,9 @@ public class Supplier {
     @Column(nullable = false)
     private Boolean enabled = true;
 
+    @Column(name = "create_time")
+    private LocalDateTime createTime;
+
     public Supplier() {}
 
     public Long getId() { return id; }
@@ -48,4 +52,6 @@ public class Supplier {
     public void setRemark(String remark) { this.remark = remark; }
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+    public LocalDateTime getCreateTime() { return createTime; }
+    public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
 }

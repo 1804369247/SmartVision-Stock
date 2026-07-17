@@ -24,13 +24,16 @@ public interface StockService {
     GoodsInstance createGoodsInstance(Long goodsId, String batchNo, Integer quantity, Long locationId, String operator);
     GoodsInstance updateGoodsInstance(Long id, Integer quantity);
     GoodsInstance getGoodsInstanceById(Long id);
+    Page<GoodsInstance> getAllInstances(int page, int size);
     
-    InoutRecord createInboundRecord(Long goodsId, String batchNo, Integer quantity, Long locationId, String operator);
+    InoutRecord createInboundRecord(Long goodsInstanceId, Long goodsId, String batchNo, Integer quantity, Long locationId, String operator);
     InoutRecord createOutboundRecord(Long goodsInstanceId, Integer quantity, String operator);
     
     Map<String, Object> inbound(Long goodsId, String batchNo, Integer quantity, Long locationId);
     Map<String, Object> outbound(Long goodsInstanceId, Integer quantity);
     Map<String, Object> move(Long goodsInstanceId, Long targetLocationId);
+    
+    Map<String, Object> adjustInventory(Long goodsInstanceId, Integer quantity);
     
     Page<InoutRecordDTO> getInoutRecords(InoutRecordQueryRequest request);
     ReplayRecordDTO getReplayRecord(Long recordId);

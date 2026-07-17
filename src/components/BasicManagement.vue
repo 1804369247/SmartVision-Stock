@@ -21,14 +21,16 @@
         <el-table-column prop="spec" label="规格" width="120" />
         <el-table-column prop="unit" label="单位" width="60" />
         <el-table-column prop="category" label="分类" width="100" />
-        <el-table-column prop="warningThreshold" label="安全库存" width="80" />
+        <el-table-column prop="warningQuantity" label="安全库存" width="80" />
         <el-table-column prop="defaultShelfLife" label="保质期(天)" width="100" />
         <el-table-column prop="storageRule" label="存放要求" width="120" />
         <el-table-column prop="defaultSupplier" label="默认供应商" />
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="150">
           <template #default="scope">
-            <el-button size="small" @click="editItem(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteItem(scope.row)">删除</el-button>
+            <div class="action-btns">
+              <el-button size="small" @click="editItem(scope.row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="deleteItem(scope.row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </template>
@@ -40,10 +42,12 @@
         <el-table-column prop="phone" label="电话" width="120" />
         <el-table-column prop="address" label="地址" />
         <el-table-column prop="remark" label="备注" />
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="150">
           <template #default="scope">
-            <el-button size="small" @click="editItem(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="deleteItem(scope.row)">删除</el-button>
+            <div class="action-btns">
+              <el-button size="small" @click="editItem(scope.row)">编辑</el-button>
+              <el-button size="small" type="danger" @click="deleteItem(scope.row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </template>
@@ -60,10 +64,13 @@
         <el-table-column prop="goodsName" label="货物" />
         <el-table-column prop="quantity" label="数量" width="80" />
         <el-table-column prop="description" label="描述" />
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="200">
           <template #default="scope">
-            <el-button size="small" @click="editItem(scope.row)">编辑</el-button>
-            <el-button size="small" type="warning" @click="locateLocation(scope.row)">定位</el-button>
+            <div class="action-btns">
+              <el-button size="small" @click="editItem(scope.row)">编辑</el-button>
+              <el-button size="small" type="warning" @click="locateLocation(scope.row)">定位</el-button>
+              <el-button size="small" type="danger" @click="deleteItem(scope.row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </template>
@@ -90,8 +97,8 @@
           <el-form-item label="分类" prop="category">
             <el-input v-model="formData.category" placeholder="请输入分类" />
           </el-form-item>
-          <el-form-item label="安全库存" prop="warningThreshold">
-            <el-input-number v-model="formData.warningThreshold" :min="0" />
+          <el-form-item label="安全库存" prop="warningQuantity">
+            <el-input-number v-model="formData.warningQuantity" :min="0" />
           </el-form-item>
           <el-form-item label="保质期(天)" prop="defaultShelfLife">
             <el-input-number v-model="formData.defaultShelfLife" :min="0" />
@@ -160,8 +167,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, computed, watch, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { basicApi } from '../api/basic'
+import { goodsApi } from '../api/goods'
+import { locationApi } from '../api/location'
 
 const props = defineProps({
   subPage: { type: String, required: true }
@@ -188,15 +198,53 @@ const formData = ref({})
 
 const refreshData = async () => {
   try {
-    let url = ''
-    if (currentSubPage.value === 'goods') url = '/api/goods'
-    else if (currentSubPage.value === 'suppliers') url = '/api/basic/suppliers'
-    else if (currentSubPage.value === 'locations') url = '/api/locations'
-    
-    const res = await fetch(url)
-    tableData.value = await res.json()
+    let result
+    const kw = searchKeyword.value?.trim()
+    if (currentSubPage.value === 'goods') {
+      result = kw ? await goodsApi.search(kw) : await goodsApi.getAll()
+    } else if (currentSubPage.value === 'suppliers') {
+      result = await basicApi.getSuppliers()
+    } else if (currentSubPage.value === 'locations') {
+      result = await locationApi.getAll()
+    }
+    // 兼容多种响应格式：{data: [...]}, {list: [...]}, 直接数组, axios原始响应
+    let arr
+    if (Array.isArray(result)) {
+      arr = result
+    } else if (result && typeof result === 'object') {
+      arr = result.data?.content ?? result.data ?? result.content ?? result.list ?? result.records ?? result.items ?? null
+      if (!Array.isArray(arr)) {
+        for (const key of Object.keys(result.data || result)) {
+          if (Array.isArray((result.data || result)[key])) { arr = (result.data || result)[key]; break }
+        }
+      }
+    } else {
+      arr = null
+    }
+    let data = Array.isArray(arr) ? arr : []
+    // 供应商和库位使用前端过滤
+    if (kw && currentSubPage.value !== 'goods') {
+      const k = kw.toLowerCase()
+      data = data.filter(item => {
+        const vals = Object.values(item).map(v => String(v ?? '').toLowerCase())
+        return vals.some(v => v.includes(k))
+      })
+    }
+    tableData.value = data
+    if (tableData.value.length > 0) {
+      console.log(`[BasicManagement] ${currentSubPage.value} 加载 ${tableData.value.length} 条，首条字段:`, Object.keys(tableData.value[0]))
+    } else {
+      console.warn(`[BasicManagement] ${currentSubPage.value} 数据为空! 原始返回类型:`, typeof result, Array.isArray(result) ? 'array[' + result.length + ']' : result ? ('object keys:' + Object.keys(result).join(',')) : 'null')
+    }
   } catch (e) {
-    ElMessage.error('加载数据失败')
+    console.error('加载数据失败:', e)
+    const msg = e?.response?.status === 403
+      ? '无权限访问，请重新登录'
+      : e?.response?.status === 401
+        ? '登录已过期，请重新登录'
+        : '加载数据失败，请稍后重试'
+    ElMessage.error(msg)
+    tableData.value = []
   }
 }
 
@@ -211,20 +259,34 @@ const editItem = (item) => {
 }
 
 const deleteItem = async (item) => {
-  if (!confirm(`确定删除${currentSubPage.value === 'goods' ? '货物' : currentSubPage.value === 'suppliers' ? '供应商' : '库位'}: ${item.name || item.locationCode}?`)) return
-  
+  const typeMap = { goods: '货物', suppliers: '供应商', locations: '库位' }
+  const typeLabel = typeMap[currentSubPage.value] || '数据'
+  const name = item.name || item.locationCode || item.code || ''
   try {
-    let url = ''
-    if (currentSubPage.value === 'goods') url = `/api/basic/goods/${item.id}`
-    else if (currentSubPage.value === 'suppliers') url = `/api/basic/suppliers/${item.id}`
-    
-    const res = await fetch(url, { method: 'DELETE' })
-    const result = await res.json()
-    if (result.success) {
+    await ElMessageBox.confirm(`确定删除${typeLabel}：${name}？`, {
+      title: '提示',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+  } catch {
+    return
+  }
+
+  try {
+    let result
+    if (currentSubPage.value === 'goods') {
+      result = await goodsApi.delete(item.id)
+    } else if (currentSubPage.value === 'suppliers') {
+      result = await basicApi.deleteSupplier(item.id)
+    } else if (currentSubPage.value === 'locations') {
+      result = await locationApi.delete(item.id)
+    }
+    if (result.code === 200) {
       ElMessage.success('删除成功')
       refreshData()
     } else {
-      ElMessage.error(result.message)
+      ElMessage.error(result.message || '删除失败')
     }
   } catch (e) {
     ElMessage.error('删除失败')
@@ -233,36 +295,35 @@ const deleteItem = async (item) => {
 
 const saveItem = async () => {
   try {
-    let url = ''
-    let method = 'POST'
-    
+    let result
     if (currentSubPage.value === 'goods') {
-      url = editingItem.value ? `/api/basic/goods/${editingItem.value.id}` : '/api/basic/goods'
-      method = editingItem.value ? 'PUT' : 'POST'
+      if (editingItem.value) {
+        result = await goodsApi.update(editingItem.value.id, formData.value)
+      } else {
+        result = await goodsApi.create(formData.value)
+      }
     } else if (currentSubPage.value === 'suppliers') {
-      url = editingItem.value ? `/api/basic/suppliers/${editingItem.value.id}` : '/api/basic/suppliers'
-      method = editingItem.value ? 'PUT' : 'POST'
+      if (editingItem.value) {
+        result = await basicApi.updateSupplier(editingItem.value.id, formData.value)
+      } else {
+        result = await basicApi.createSupplier(formData.value)
+      }
     } else if (currentSubPage.value === 'locations') {
-      ElMessage.info('库位管理暂不支持新增/编辑')
-      showAddModal.value = false
-      return
+      if (editingItem.value) {
+        result = await locationApi.update(editingItem.value.id, formData.value)
+      } else {
+        result = await locationApi.create(formData.value)
+      }
     }
-    
-    const res = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData.value)
-    })
-    
-    const result = await res.json()
-    if (result.success) {
+
+    if (result.code === 200) {
       ElMessage.success(editingItem.value ? '修改成功' : '新增成功')
       showAddModal.value = false
       editingItem.value = null
       formData.value = {}
       refreshData()
     } else {
-      ElMessage.error(result.message)
+      ElMessage.error(result.message || '保存失败')
     }
   } catch (e) {
     ElMessage.error('保存失败')
@@ -284,14 +345,21 @@ const getStatusText = (status) => {
 }
 
 onMounted(() => refreshData())
+
+// 切换子 Tab（货物/供应商/库位）时自动重新加载数据
+watch(currentSubPage, () => {
+  tableData.value = []
+  refreshData()
+})
 </script>
 
 <style scoped>
-.module-page { padding: 12px; height: 100%; display: flex; flex-direction: column; }
+.module-page { padding: 12px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .page-header h3 { color: #fff; font-size: 14px; margin: 0; }
 .header-actions { display: flex; gap: 8px; }
 .search-bar { margin-bottom: 12px; }
 .search-bar .el-input { width: 200px; }
-.data-table { flex: 1; overflow: auto; }
+.data-table { width: 100%; }
+.action-btns { display: flex; gap: 6px; justify-content: center; flex-wrap: nowrap; }
 </style>

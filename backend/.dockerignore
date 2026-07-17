@@ -1,0 +1,9 @@
+target
+.workbuddy
+.uploads
+uploads
+node_modules
+.git
+*.log
+fakejdk
+apache-maven-3.9.9

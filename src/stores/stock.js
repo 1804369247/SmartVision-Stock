@@ -18,7 +18,8 @@ export const useStockStore = defineStore('stock', () => {
   const fetchInventory = async () => {
     loading.value = true
     try {
-      inventory.value = await stockApi.getInventory()
+      const response = await stockApi.getInventory()
+      inventory.value = response.data?.data || response.data?.content || response.data || []
     } catch (error) {
       console.error('Failed to fetch inventory:', error)
     } finally {
@@ -29,7 +30,8 @@ export const useStockStore = defineStore('stock', () => {
   const fetchInstances = async () => {
     loading.value = true
     try {
-      instances.value = await stockApi.getInstances()
+      const response = await stockApi.getInstances()
+      instances.value = response.data?.content || response.data || []
     } catch (error) {
       console.error('Failed to fetch instances:', error)
     } finally {

@@ -4,7 +4,13 @@ import javax.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "goods_instance")
+@Table(name = "goods_instance", indexes = {
+    @Index(name = "idx_goods_instance_goods_id", columnList = "goods_id"),
+    @Index(name = "idx_goods_instance_location_id", columnList = "location_id"),
+    @Index(name = "idx_goods_instance_expiry_date", columnList = "expiry_date"),
+    @Index(name = "idx_goods_instance_frozen", columnList = "frozen"),
+    @Index(name = "idx_goods_instance_batch_no", columnList = "batch_no")
+})
 public class GoodsInstance {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,6 +48,10 @@ public class GoodsInstance {
     
     @Column(name = "frozen_reason")
     private String frozenReason;
+
+    // 说明：本实体不使用 @Version 乐观锁。出库确认时的并发安全由
+    // GoodsInstanceRepository.findByIdForUpdate 的悲观写锁保证（见 OrderServiceImpl）。
+    // 历史 DB 中残留的 version 列为无害孤儿列，不再映射为实体字段。
 
     public GoodsInstance() {}
 
@@ -81,6 +91,7 @@ public class GoodsInstance {
     public LocalDateTime getExpiryDate() { return expiryDate; }
     public void setExpiryDate(LocalDateTime expiryDate) { this.expiryDate = expiryDate; }
     public Boolean getFrozen() { return frozen; }
+    public boolean isFrozen() { return Boolean.TRUE.equals(frozen); }
     public void setFrozen(Boolean frozen) { this.frozen = frozen; }
     public String getFrozenReason() { return frozenReason; }
     public void setFrozenReason(String frozenReason) { this.frozenReason = frozenReason; }

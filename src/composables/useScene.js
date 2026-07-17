@@ -72,6 +72,7 @@ export function useScene() {
   let hoveredMesh = null
   let shelves = []
   let highlightedMeshes = []
+  let highlightTimer = null  // 高亮自动清除定时器
   let geometryCache = null
   let materialCache = {}
 
@@ -297,11 +298,16 @@ export function useScene() {
         }
       })
     })
-    // 3秒后自动清除高亮
-    setTimeout(clearHighlight, 3000)
+    // 清除旧定时器，设置新的3秒自动清除高亮
+    if (highlightTimer) clearTimeout(highlightTimer)
+    highlightTimer = setTimeout(clearHighlight, 3000)
   }
 
   const clearHighlight = () => {
+    if (highlightTimer) {
+      clearTimeout(highlightTimer)
+      highlightTimer = null
+    }
     highlightedMeshes.forEach(mesh => {
       mesh.material.emissive.setHex(0x000000)
       mesh.material.emissiveIntensity = 0
@@ -376,12 +382,91 @@ export function useScene() {
   const startAnimate = () => { animate() }
 
   const dispose = () => {
-    if (animationId) cancelAnimationFrame(animationId)
-    if (controls) controls.dispose()
-    if (renderer) renderer.dispose()
-    geometryCache = null
+    // 取消动画循环
+    if (animationId) {
+      cancelAnimationFrame(animationId)
+      animationId = null
+    }
+
+    // 清理高亮定时器
+    if (highlightTimer) {
+      clearTimeout(highlightTimer)
+      highlightTimer = null
+    }
+    clearHighlight()
+
+    // 清理控制器
+    if (controls) {
+      controls.dispose()
+      controls = null
+    }
+
+    // 遍历场景释放所有 Three.js 资源
+    if (scene) {
+      scene.traverse((obj) => {
+        if (obj.geometry) {
+          obj.geometry.dispose()
+        }
+        if (obj.material) {
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(m => disposeMaterial(m))
+          } else {
+            disposeMaterial(obj.material)
+          }
+        }
+      })
+      // 清空场景子元素
+      while (scene.children.length > 0) {
+        scene.remove(scene.children[0])
+      }
+      scene = null
+    }
+
+    // 清理渲染器
+    if (renderer) {
+      renderer.dispose()
+      // 清理 WebGL 上下文
+      const gl = renderer.domElement?.getContext?.('webgl2') || renderer.domElement?.getContext?.('webgl')
+      if (gl?.getExtension('WEBGL_lose_context')) {
+        gl.getExtension('WEBGL_lose_context').loseContext()
+      }
+      renderer.forceContextLoss?.()
+      if (renderer.domElement?.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement)
+      }
+      renderer = null
+    }
+
+    // 清理相机引用
+    camera = null
+    raycaster = null
+    mouse = null
+    hoveredMesh = null
+
+    // 清理几何体缓存
+    if (geometryCache) {
+      geometryCache.dispose()
+      geometryCache = null
+    }
+
+    // 清理材质缓存
+    Object.values(materialCache).forEach(m => disposeMaterial(m))
     materialCache = {}
+
     shelves = []
+    highlightedMeshes = []
+  }
+
+  // 安全释放材质（含纹理清理）
+  const disposeMaterial = (mat) => {
+    // 遍历材质的纹理属性并释放
+    for (const key of Object.keys(mat)) {
+      const value = mat[key]
+      if (value?.isTexture) {
+        value.dispose()
+      }
+    }
+    mat.dispose()
   }
 
   const getShelves = () => shelves

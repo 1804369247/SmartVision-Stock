@@ -3,6 +3,8 @@ package com.example.smartvisionstock.controller;
 import com.example.smartvisionstock.service.StockService;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -17,8 +19,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/export")
-@CrossOrigin(origins = "*")
 public class ExportController {
+
+    private static final Logger log = LoggerFactory.getLogger(ExportController.class);
 
     @Autowired
     private StockService stockService;
@@ -74,7 +77,9 @@ public class ExportController {
                     try {
                         int statusInt = Integer.parseInt(status);
                         if (loc.getStatus() != statusInt) continue;
-                    } catch (NumberFormatException e) {}
+                    } catch (NumberFormatException e) {
+                        log.debug("Invalid status filter value: {}", status);
+                    }
                 }
             }
             if (attribute != null && !attribute.isEmpty() && !attribute.equals(loc.getAttribute())) continue;
@@ -370,7 +375,8 @@ public class ExportController {
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(fileName, StandardCharsets.UTF_8));
         response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
-        workbook.write(response.getOutputStream());
-        workbook.close();
+        try (Workbook wb = workbook) {
+            wb.write(response.getOutputStream());
+        }
     }
 }

@@ -1,27 +1,35 @@
-import { get, post, put, del } from './index'
+import { get, post, put, del } from './index-helpers'
+
+const BASE = '/basic/goods'
 
 export const goodsApi = {
+  /** 获取货物列表 */
   getAll() {
-    return get('/goods')
+    return get(`${BASE}`, null, { cache: false })
   },
-  
+
+  /** 根据ID获取货物详情 */
   getById(id) {
-    return get(`/goods/${id}`)
+    return get(`${BASE}/${id}`, null, { cache: false })
   },
-  
+
+  /** 新增货物（走 BasicController） */
   create(data) {
-    return post('/goods', data)
+    return post(BASE, data)
   },
-  
+
+  /** 更新货物（走 BasicController） */
   update(id, data) {
-    return put(`/goods/${id}`, data)
+    return put(`${BASE}/${id}`, data)
   },
-  
+
+  /** 删除货物（走 BasicController） */
   delete(id) {
-    return del(`/goods/${id}`)
+    return del(`${BASE}/${id}`)
   },
-  
+
+  /** 搜索货物 */
   search(keyword) {
-    return get('/goods/search', { keyword })
+    return get(`${BASE}/search`, { keyword }, { cache: false })
   }
 }

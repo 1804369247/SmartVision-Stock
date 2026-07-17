@@ -1,31 +1,35 @@
-import { get, post, put, del } from './index'
+import { get, post, put, del } from './index-helpers'
 
 export const stockApi = {
-  getInventory() {
-    return get('/inventory')
+  getInventory(params = {}) {
+    return get('/reports/inventory', params)
   },
-  
+
   getInventoryByLocation(locationId) {
-    return get('/inventory/location', { locationId })
+    return get('/reports/inventory', { area: locationId })
   },
-  
+
   getInventoryByGoods(goodsId) {
-    return get('/inventory/goods', { goodsId })
+    return get('/reports/inventory', { goodsName: goodsId })
   },
-  
-  inbound(data) {
-    return post('/inbound', data)
+
+  getGoods() {
+    return get('/goods')
   },
-  
-  outbound(data) {
-    return post('/outbound', data)
+
+  getLocations() {
+    return get('/locations')
   },
-  
+
+  adjust(data) {
+    return post('/adjust', data)
+  },
+
   move(data) {
     return post('/move', data)
   },
-  
-  getInstances() {
-    return get('/instances')
+
+  getInstances(params = {}) {
+    return get('/instances', params)
   }
 }

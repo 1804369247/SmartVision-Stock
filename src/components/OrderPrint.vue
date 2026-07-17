@@ -12,7 +12,7 @@
           <div class="template-header">
             <div class="company-info">
               <h1>入库单</h1>
-              <div class="company-name">SmartVision Stock 仓储管理系统</div>
+              <div class="company-name">智视仓储管理系统</div>
               <div class="company-address">地址：XX市XX区XX路XX号</div>
             </div>
             <div class="order-info">
@@ -135,7 +135,7 @@
           <div class="template-header">
             <div class="company-info">
               <h1>出库单</h1>
-              <div class="company-name">SmartVision Stock 仓储管理系统</div>
+              <div class="company-name">智视仓储管理系统</div>
               <div class="company-address">地址：XX市XX区XX路XX号</div>
             </div>
             <div class="order-info">
@@ -340,29 +340,47 @@ const formatDate = (dateStr) => {
 }
 
 const handlePrint = () => {
+  if (!printRef.value) return
   const printContent = printRef.value.innerHTML
-  const originalContent = document.body.innerHTML
-  
-  document.body.innerHTML = printContent
-  
+  const iframe = document.createElement('iframe')
+  iframe.style.position = 'fixed'
+  iframe.style.right = '0'
+  iframe.style.bottom = '0'
+  iframe.style.width = '0'
+  iframe.style.height = '0'
+  iframe.style.border = 'none'
+  document.body.appendChild(iframe)
+
+  const iframeDoc = iframe.contentWindow.document
+  iframeDoc.open()
+  iframeDoc.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>打印单据</title>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; padding: 20px; }
+        @media print { body { padding: 0; } }
+      </style>
+    </head>
+    <body>${printContent}</body>
+    </html>
+  `)
+  iframeDoc.close()
+
+  iframe.contentWindow.focus()
+  iframe.contentWindow.print()
+
+  // 打印完成后清理 iframe
   setTimeout(() => {
-    window.print()
-    document.body.innerHTML = originalContent
-    window.location.reload()
-  }, 100)
+    document.body.removeChild(iframe)
+  }, 1000)
 }
 
 const handleExport = () => {
-  const printContent = printRef.value.innerHTML
-  const originalContent = document.body.innerHTML
-  
-  document.body.innerHTML = printContent
-  
-  setTimeout(() => {
-    window.print()
-    document.body.innerHTML = originalContent
-    window.location.reload()
-  }, 100)
+  handlePrint()
 }
 
 watch(() => props.visible, (val) => {

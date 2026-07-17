@@ -1,39 +1,37 @@
-import { get, post, put, del } from './index'
+import { get, post, put, del } from './index-helpers'
 
 export const basicApi = {
+  // ===== 供应商管理 =====
   getSuppliers() {
-    return get('/basic/suppliers')
+    return get('/basic/suppliers', null, { cache: false })
   },
-  
+
   createSupplier(data) {
     return post('/basic/suppliers', data)
   },
-  
+
   updateSupplier(id, data) {
     return put(`/basic/suppliers/${id}`, data)
   },
-  
+
   deleteSupplier(id) {
     return del(`/basic/suppliers/${id}`)
   },
-  
-  getCustomers() {
-    return get('/basic/customers')
-  },
-  
-  createCustomer(data) {
-    return post('/basic/customers', data)
-  },
-  
-  updateCustomer(id, data) {
-    return put(`/basic/customers/${id}`, data)
-  },
-  
-  deleteCustomer(id) {
-    return del(`/basic/customers/${id}`)
-  },
-  
+
+  // ===== 仓库管理 =====
   getWarehouses() {
-    return get('/basic/warehouses')
+    return get('/basic/warehouses', null, { cache: false })
+  },
+
+  createWarehouse(data) {
+    return post('/basic/warehouses', data)
+  },
+
+  updateWarehouse(id, data) {
+    return put(`/basic/warehouses/${id}`, data)
+  },
+
+  deleteWarehouse(id) {
+    return del(`/basic/warehouses/${id}`)
   }
 }

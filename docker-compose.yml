@@ -1,0 +1,116 @@
+version: '3.8'
+
+# 一键部署：MySQL + Redis + MinIO + 后端 + 前端
+# 用法：
+#   1) 复制并修改 .env（至少改 JWT_SECRET 为随机长字符串）
+#   2) docker compose up -d --build
+#   3) 前端访问 http://localhost:8081 ，后端 API http://localhost:8080
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: sv-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-123456}
+      MYSQL_DATABASE: smartvision_stock
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:-123456}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sv-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: sv-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sv-net
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: sv-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - sv-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sv-backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8080
+      DB_URL: jdbc:mysql://mysql:3306/smartvision_stock?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_PASSWORD:-123456}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: 86400000
+      SPRING_PROFILES_ACTIVE: redis,minio
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: smartvision-stock
+      CORS_ORIGINS: "*"
+    ports:
+      - "8080:8080"
+    networks:
+      - sv-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: sv-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
+    networks:
+      - sv-net
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  minio-data:
+
+networks:
+  sv-net:
+    driver: bridge

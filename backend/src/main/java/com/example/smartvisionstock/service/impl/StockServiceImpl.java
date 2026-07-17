@@ -12,9 +12,11 @@ import com.example.smartvisionstock.repository.GoodsInstanceRepository;
 import com.example.smartvisionstock.repository.GoodsRepository;
 import com.example.smartvisionstock.repository.InoutRecordRepository;
 import com.example.smartvisionstock.repository.StorageLocationRepository;
+import com.example.smartvisionstock.event.StockChangeEvent;
 import com.example.smartvisionstock.service.StockService;
-import com.example.smartvisionstock.websocket.StockWebSocketHandler;
+import com.example.smartvisionstock.util.UserContext;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +32,7 @@ import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
+import javax.persistence.criteria.Subquery;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,7 +57,7 @@ public class StockServiceImpl implements StockService {
     private InoutRecordRepository inoutRecordRepository;
 
     @Autowired
-    private StockWebSocketHandler webSocketHandler;
+    private ApplicationEventPublisher eventPublisher;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -123,12 +126,18 @@ public class StockServiceImpl implements StockService {
     }
 
     @Override
+    public Page<GoodsInstance> getAllInstances(int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), Sort.by(Sort.Direction.DESC, "id"));
+        return goodsInstanceRepository.findAll(pageable);
+    }
+
+    @Override
     @Transactional
-    public InoutRecord createInboundRecord(Long goodsId, String batchNo, Integer quantity, Long locationId, String operator) {
+    public InoutRecord createInboundRecord(Long goodsInstanceId, Long goodsId, String batchNo, Integer quantity, Long locationId, String operator) {
         InoutRecord record = new InoutRecord();
         record.setOrderNo("IN-" + System.currentTimeMillis());
         record.setType("IN");
-        record.setGoodsInstanceId(goodsInstanceRepository.findByLocationId(locationId).stream().findFirst().map(GoodsInstance::getId).orElse(null));
+        record.setGoodsInstanceId(goodsInstanceId);
         record.setToLocationId(locationId);
         record.setQuantity(quantity);
         record.setOperateTime(LocalDateTime.now());
@@ -158,39 +167,41 @@ public class StockServiceImpl implements StockService {
         
         StorageLocation location = storageLocationRepository.findById(locationId).orElse(null);
         if (location == null) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "仓位不存在");
             return result;
         }
         
         if (location.getStatus() == 1) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "该仓位已有货物");
             return result;
         }
 
         Goods goods = goodsRepository.findById(goodsId).orElse(null);
         if (goods == null) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "货物不存在");
             return result;
         }
 
-        GoodsInstance instance = createGoodsInstance(goodsId, batchNo, quantity, locationId, "admin");
+        GoodsInstance instance = createGoodsInstance(goodsId, batchNo, quantity, locationId,
+                UserContext.getCurrentUsernameOrDefault("admin"));
         
         location.setStatus(1);
         location.setCurrentGoodsInstanceId(instance.getId());
         storageLocationRepository.save(location);
 
-        createInboundRecord(goodsId, batchNo, quantity, locationId, "admin");
+        createInboundRecord(instance.getId(), goodsId, batchNo, quantity, locationId,
+                UserContext.getCurrentUsernameOrDefault("admin"));
 
-        result.put("success", true);
+        result.put("code", 200);
         result.put("message", "入库成功");
         result.put("locationId", locationId);
         result.put("newStatus", 1);
         result.put("goodsInstanceId", instance.getId());
 
-        webSocketHandler.broadcastStockChange(locationId, 1, instance.getId());
+        eventPublisher.publishEvent(new StockChangeEvent(locationId, 1, instance.getId()));
 
         return result;
     }
@@ -202,13 +213,13 @@ public class StockServiceImpl implements StockService {
         
         GoodsInstance instance = goodsInstanceRepository.findById(goodsInstanceId).orElse(null);
         if (instance == null) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "货物实例不存在");
             return result;
         }
 
         if (instance.getQuantity() < quantity) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "库存不足");
             return result;
         }
@@ -224,15 +235,15 @@ public class StockServiceImpl implements StockService {
                 storageLocationRepository.save(location);
             }
             updateGoodsInstance(goodsInstanceId, 0);
-            webSocketHandler.broadcastStockChange(locationId, 0, null);
+            eventPublisher.publishEvent(new StockChangeEvent(locationId, 0, null));
         } else {
             updateGoodsInstance(goodsInstanceId, newQuantity);
-            webSocketHandler.broadcastStockChange(locationId, 1, goodsInstanceId);
+            eventPublisher.publishEvent(new StockChangeEvent(locationId, 1, goodsInstanceId));
         }
 
-        createOutboundRecord(goodsInstanceId, quantity, "admin");
+        createOutboundRecord(goodsInstanceId, quantity, UserContext.getCurrentUsernameOrDefault("admin"));
 
-        result.put("success", true);
+        result.put("code", 200);
         result.put("message", "出库成功");
         result.put("locationId", locationId);
         result.put("newStatus", newQuantity > 0 ? 1 : 0);
@@ -242,25 +253,94 @@ public class StockServiceImpl implements StockService {
     }
 
     @Override
+    @Transactional
+    public Map<String, Object> adjustInventory(Long goodsInstanceId, Integer quantity) {
+        Map<String, Object> result = new HashMap<>();
+        
+        GoodsInstance instance = goodsInstanceRepository.findById(goodsInstanceId).orElse(null);
+        if (instance == null) {
+            result.put("code", 400);
+            result.put("message", "货物实例不存在");
+            return result;
+        }
+
+        if (Boolean.TRUE.equals(instance.getFrozen())) {
+            result.put("code", 400);
+            result.put("message", "货物已冻结，无法调整");
+            return result;
+        }
+
+        int newQuantity = instance.getQuantity() + quantity;
+        if (newQuantity < 0) {
+            result.put("code", 400);
+            result.put("message", "调整后库存不能为负数");
+            return result;
+        }
+
+        Long locationId = instance.getLocationId();
+        
+        if (newQuantity == 0) {
+            StorageLocation location = storageLocationRepository.findById(locationId).orElse(null);
+            if (location != null) {
+                location.setStatus(0);
+                location.setCurrentGoodsInstanceId(null);
+                storageLocationRepository.save(location);
+                eventPublisher.publishEvent(new StockChangeEvent(locationId, 0, null));
+            }
+            updateGoodsInstance(goodsInstanceId, 0);
+        } else {
+            updateGoodsInstance(goodsInstanceId, newQuantity);
+            eventPublisher.publishEvent(new StockChangeEvent(locationId, 1, goodsInstanceId));
+        }
+
+        InoutRecord record = new InoutRecord();
+        record.setOrderNo(generateOrderNo());
+        record.setType(quantity > 0 ? "IN" : "OUT");
+        record.setGoodsInstanceId(goodsInstanceId);
+        record.setFromLocationId(quantity < 0 ? locationId : null);
+        record.setToLocationId(quantity > 0 ? locationId : null);
+        record.setQuantity(Math.abs(quantity));
+        record.setOperatorId(UserContext.getCurrentUserIdOrDefault(1L));
+        record.setOperateTime(LocalDateTime.now());
+        inoutRecordRepository.save(record);
+
+        result.put("code", 200);
+        result.put("message", quantity > 0 ? "库存增加成功" : "库存减少成功");
+        result.put("locationId", locationId);
+        result.put("newQuantity", newQuantity);
+        result.put("goodsInstanceId", newQuantity > 0 ? goodsInstanceId : null);
+
+        return result;
+    }
+
+    @Override
+    @Transactional
     public Map<String, Object> move(Long goodsInstanceId, Long targetLocationId) {
         Map<String, Object> result = new HashMap<>();
 
         GoodsInstance instance = goodsInstanceRepository.findById(goodsInstanceId).orElse(null);
         if (instance == null) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "货物实例不存在");
+            return result;
+        }
+
+        // 校验冻结状态
+        if (Boolean.TRUE.equals(instance.getFrozen())) {
+            result.put("code", 400);
+            result.put("message", "货物已冻结，无法移库");
             return result;
         }
 
         StorageLocation targetLocation = storageLocationRepository.findById(targetLocationId).orElse(null);
         if (targetLocation == null) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "目标库位不存在");
             return result;
         }
 
         if (targetLocation.getStatus() != 0) {
-            result.put("success", false);
+            result.put("code", 400);
             result.put("message", "目标库位已被占用");
             return result;
         }
@@ -272,13 +352,13 @@ public class StockServiceImpl implements StockService {
             sourceLocation.setStatus(0);
             sourceLocation.setCurrentGoodsInstanceId(null);
             storageLocationRepository.save(sourceLocation);
-            webSocketHandler.broadcastStockChange(sourceLocationId, 0, null);
+            eventPublisher.publishEvent(new StockChangeEvent(sourceLocationId, 0, null));
         }
 
         targetLocation.setStatus(1);
         targetLocation.setCurrentGoodsInstanceId(goodsInstanceId);
         storageLocationRepository.save(targetLocation);
-        webSocketHandler.broadcastStockChange(targetLocationId, 1, goodsInstanceId);
+        eventPublisher.publishEvent(new StockChangeEvent(targetLocationId, 1, goodsInstanceId));
 
         instance.setLocationId(targetLocationId);
         goodsInstanceRepository.save(instance);
@@ -290,11 +370,11 @@ public class StockServiceImpl implements StockService {
         record.setFromLocationId(sourceLocationId);
         record.setToLocationId(targetLocationId);
         record.setQuantity(instance.getQuantity());
-        record.setOperatorId(1L);
+        record.setOperatorId(UserContext.getCurrentUserIdOrDefault(1L));
         record.setOperateTime(LocalDateTime.now());
         inoutRecordRepository.save(record);
 
-        result.put("success", true);
+        result.put("code", 200);
         result.put("message", "移库成功");
         result.put("sourceLocationId", sourceLocationId);
         result.put("targetLocationId", targetLocationId);
@@ -362,6 +442,15 @@ public class StockServiceImpl implements StockService {
             predicates.add(cb.lessThanOrEqualTo(root.get("operateTime"), request.getEndTime()));
         }
         
+        if (request.getGoodsName() != null && !request.getGoodsName().isEmpty()) {
+            // goodsInstanceId 仅是 Long 列，无法 join 实体；改用子查询按 goodsId 关联商品名称
+            javax.persistence.criteria.Subquery<Long> goodsSub = cq.subquery(Long.class);
+            javax.persistence.criteria.Root<Goods> goodsRoot = goodsSub.from(Goods.class);
+            goodsSub.select(goodsRoot.get("id"));
+            goodsSub.where(cb.like(goodsRoot.get("name"), "%" + request.getGoodsName() + "%"));
+            predicates.add(root.get("goodsId").in(goodsSub));
+        }
+        
         cq.where(predicates.toArray(new Predicate[0]));
         cq.orderBy(cb.desc(root.get("operateTime")));
 
@@ -371,20 +460,29 @@ public class StockServiceImpl implements StockService {
         
         List<InoutRecord> records = query.getResultList();
         
+        CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
+        Root<InoutRecord> countRoot = countQuery.from(InoutRecord.class);
+        
+        List<Predicate> countPredicates = new ArrayList<>();
+        if (request.getType() != null && !request.getType().isEmpty()) {
+            countPredicates.add(cb.equal(countRoot.get("type"), request.getType()));
+        }
+        if (request.getStartTime() != null) {
+            countPredicates.add(cb.greaterThanOrEqualTo(countRoot.get("operateTime"), request.getStartTime()));
+        }
+        if (request.getEndTime() != null) {
+            countPredicates.add(cb.lessThanOrEqualTo(countRoot.get("operateTime"), request.getEndTime()));
+        }
         if (request.getGoodsName() != null && !request.getGoodsName().isEmpty()) {
-            records = records.stream().filter(r -> {
-                GoodsInstance gi = goodsInstanceRepository.findById(r.getGoodsInstanceId()).orElse(null);
-                if (gi != null) {
-                    Goods g = goodsRepository.findById(gi.getGoodsId()).orElse(null);
-                    return g != null && g.getName() != null && g.getName().contains(request.getGoodsName());
-                }
-                return false;
-            }).collect(Collectors.toList());
+            javax.persistence.criteria.Subquery<Long> goodsSub = countQuery.subquery(Long.class);
+            javax.persistence.criteria.Root<Goods> goodsRoot = goodsSub.from(Goods.class);
+            goodsSub.select(goodsRoot.get("id"));
+            goodsSub.where(cb.like(goodsRoot.get("name"), "%" + request.getGoodsName() + "%"));
+            countPredicates.add(countRoot.get("goodsId").in(goodsSub));
         }
         
-        CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
-        countQuery.select(cb.count(countQuery.from(InoutRecord.class)));
-        countQuery.where(predicates.toArray(new Predicate[0]));
+        countQuery.select(cb.count(countRoot));
+        countQuery.where(countPredicates.toArray(new Predicate[0]));
         long total = entityManager.createQuery(countQuery).getSingleResult();
 
         Page<InoutRecord> recordPage = new PageImpl<>(records, pageable, total);

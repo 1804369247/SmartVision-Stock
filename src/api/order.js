@@ -1,4 +1,4 @@
-import { get, post, put, del } from './index'
+import { get, post, put, del } from './index-helpers'
 
 export const orderApi = {
   getInboundList(params = {}) {
@@ -43,5 +43,13 @@ export const orderApi = {
   
   confirmOutbound(id) {
     return put(`/order/outbound/${id}/confirm`)
+  },
+
+  deleteInbound(id) {
+    return del(`/order/inbound/${id}`)
+  },
+
+  deleteOutbound(id) {
+    return del(`/order/outbound/${id}`)
   }
 }

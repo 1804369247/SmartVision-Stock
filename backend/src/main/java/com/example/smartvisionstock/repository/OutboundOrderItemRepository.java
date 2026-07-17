@@ -9,4 +9,6 @@ import java.util.List;
 @Repository
 public interface OutboundOrderItemRepository extends JpaRepository<OutboundOrderItem, Long> {
     List<OutboundOrderItem> findByOrderId(Long orderId);
+
+    void deleteByOrderId(Long orderId);
 }

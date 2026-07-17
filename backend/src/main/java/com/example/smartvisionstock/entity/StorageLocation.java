@@ -3,7 +3,12 @@ package com.example.smartvisionstock.entity;
 import javax.persistence.*;
 
 @Entity
-@Table(name = "storage_location")
+@Table(name = "storage_location", indexes = {
+    @Index(name = "idx_storage_location_barcode", columnList = "barcode"),
+    @Index(name = "idx_storage_location_area", columnList = "area"),
+    @Index(name = "idx_storage_location_status", columnList = "status"),
+    @Index(name = "idx_storage_location_current_goods_instance_id", columnList = "current_goods_instance_id")
+})
 public class StorageLocation {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,6 +40,9 @@ public class StorageLocation {
     
     @Column(length = 100)
     private String description;
+
+    @Column(length = 50, unique = true)
+    private String barcode;
 
     public StorageLocation() {}
 
@@ -71,4 +79,6 @@ public class StorageLocation {
     public void setAttribute(String attribute) { this.attribute = attribute; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getBarcode() { return barcode; }
+    public void setBarcode(String barcode) { this.barcode = barcode; }
 }

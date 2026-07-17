@@ -10,6 +10,7 @@ import java.util.Optional;
 @Repository
 public interface StorageLocationRepository extends JpaRepository<StorageLocation, Long> {
     Optional<StorageLocation> findByLocationCode(String locationCode);
+    Optional<StorageLocation> findByBarcode(String barcode);
     List<StorageLocation> findByArea(String area);
     List<StorageLocation> findByStatus(Integer status);
 }

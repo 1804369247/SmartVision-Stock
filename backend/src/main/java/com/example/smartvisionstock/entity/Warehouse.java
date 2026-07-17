@@ -1,41 +1,51 @@
 package com.example.smartvisionstock.entity;
 
 import javax.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
-@Table(name = "warehouse")
+@Table(name = "warehouses")
 public class Warehouse {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
-    @Column(name = "warehouse_code", nullable = false, length = 50)
-    private String warehouseCode;
-    
+
+    @Column(unique = true, nullable = false, length = 50)
+    private String code;
+
     @Column(nullable = false, length = 100)
     private String name;
-    
+
     @Column(length = 200)
     private String address;
-    
-    @Column(length = 200)
-    private String remark;
-    
+
+    @Column(length = 50)
+    private String manager;
+
+    @Column(length = 20)
+    private String phone;
+
     @Column(nullable = false)
-    private Boolean enabled = true;
+    private Integer status = 1;
 
-    public Warehouse() {}
+    @Column(name = "create_time", nullable = false)
+    private LocalDateTime createTime;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public String getWarehouseCode() { return warehouseCode; }
-    public void setWarehouseCode(String warehouseCode) { this.warehouseCode = warehouseCode; }
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public String getAddress() { return address; }
-    public void setAddress(String address) { this.address = address; }
-    public String getRemark() { return remark; }
-    public void setRemark(String remark) { this.remark = remark; }
-    public Boolean getEnabled() { return enabled; }
-    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+    @PrePersist
+    protected void onCreate() {
+        if (createTime == null) {
+            createTime = LocalDateTime.now();
+        }
+        if (status == null) {
+            status = 1;
+        }
+    }
 }

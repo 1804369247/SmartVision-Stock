@@ -1,0 +1,30 @@
+# 集成测试专用配置：使用 H2 内存库（MySQL 兼容模式），不依赖本地 MySQL/Redis/MinIO。
+# 未激活 redis / minio profile，因此使用内存 TokenBlacklist、本地磁盘存储，
+# 且 application.yml 中的 "!redis" 段会自动排除 RedisAutoConfiguration。
+spring:
+  datasource:
+    url: jdbc:h2:mem:svs_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        globally_quoted_identifiers: true
+
+app:
+  jwt:
+    # 固定测试密钥（HS384 要求 >=48 字节），避免每次随机
+    secret: dGVzdC1zZWNyZXQtMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWYwMTIzNDU2Nzg5
+  reservation:
+    ttl-minutes: 30
+
+logging:
+  level:
+    root: WARN
+    com.example.smartvisionstock: INFO
+    org.hibernate.SQL: WARN

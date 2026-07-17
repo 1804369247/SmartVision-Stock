@@ -23,7 +23,8 @@ export const useLocationStore = defineStore('location', () => {
   const fetchLocations = async () => {
     loading.value = true
     try {
-      locations.value = await locationApi.getAll()
+      const response = await locationApi.getAll()
+      locations.value = response.data?.content || response.data || []
     } catch (error) {
       console.error('Failed to fetch locations:', error)
     } finally {

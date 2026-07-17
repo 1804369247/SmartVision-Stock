@@ -1,22 +1,66 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/smartvision_stock?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&createDatabaseIfNotExist=true
+    url: ${DB_URL:jdbc:mysql://localhost:3306/smartvision_stock?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_MAX_POOL_SIZE:20}
+      minimum-idle: ${DB_MIN_IDLE:5}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT:30000}
+      idle-timeout: ${DB_IDLE_TIMEOUT:600000}
+      max-lifetime: ${DB_MAX_LIFETIME:1800000}
+
+  h2:
+    console:
+      enabled: ${H2_CONSOLE_ENABLED:false}
+      path: /h2-console
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 100MB
   
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
+        globally_quoted_identifiers: true
+    open-in-view: false
+
+app:
+  default-reset-password: ${DEFAULT_RESET_PASSWORD:reset1234}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:86400000}
+  cors:
+    origins: ${CORS_ORIGINS:http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:3000,http://localhost:5173,https://*.ngrok-free.dev,https://*.ngrok.io}
+  security:
+    allow-h2-console: ${ALLOW_H2_CONSOLE:false}
+  reservation:
+    ttl-minutes: ${RESERVATION_TTL_MINUTES:30}
 
 logging:
   level:
-    org.hibernate.SQL: DEBUG
+    root: ${LOG_LEVEL_ROOT:INFO}
+    com.example.smartvisionstock: ${LOG_LEVEL_APP:DEBUG}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:WARN}
+
+---
+# 未激活 redis profile 时（本地 demo），排除 Redis 自动配置，
+# 避免因为类路径上存在 spring-boot-starter-data-redis 而尝试连接 Redis 导致健康检查 DOWN。
+# 激活 redis profile 时本段不生效，Redis 连接工厂正常创建。
+spring:
+  config:
+    activate:
+      on-profile: "!redis"
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartVision Stock - 自动化测试报告</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#0f1923; color:#e0e0e0; padding:40px; }
+.container { max-width:900px; margin:0 auto; }
+h1 { font-size:28px; color:#fff; margin-bottom:8px; }
+.subtitle { color:#888; margin-bottom:30px; }
+.card { background:#1a2735; border-radius:12px; padding:24px; margin-bottom:20px; border:1px solid #2a3a4a; }
+.card h2 { font-size:18px; color:#fff; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:600; }
+.badge-pass { background:#0d3320; color:#4ade80; }
+.badge-fail { background:#3d1515; color:#f87171; }
+.badge-total { background:#1e3a5f; color:#60a5fa; }
+.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:20px 0; }
+.stat-card { background:#0d1a26; border-radius:8px; padding:20px; text-align:center; border:1px solid #1e3040; }
+.stat-card .number { font-size:36px; font-weight:700; }
+.stat-card .label { font-size:13px; color:#8899aa; margin-top:4px; }
+.pass { color:#4ade80; }
+.fail { color:#f87171; }
+.total { color:#60a5fa; }
+table { width:100%; border-collapse:collapse; margin-top:12px; }
+th, td { text-align:left; padding:10px 12px; border-bottom:1px solid #1e3040; }
+th { color:#8899aa; font-size:12px; text-transform:uppercase; font-weight:500; }
+td { font-size:14px; }
+tr:hover td { background:#0d1a26; }
+.bar { height:6px; border-radius:3px; margin:12px 0; background:#1e3040; overflow:hidden; }
+.bar-fill { height:100%; border-radius:3px; transition:width 0.5s; }
+.bar-pass { background:linear-gradient(90deg,#4ade80,#22c55e); }
+.summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.progress-label { display:flex; justify-content:space-between; margin-bottom:4px; font-size:13px; }
+.footer { text-align:center; color:#666; font-size:12px; margin-top:40px; }
+.icon { font-size:20px; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>SmartVision Stock</h1>
+<p class="subtitle">自动化测试报告 — 2026年6月11日</p>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="number total">151</div>
+    <div class="label">总测试数</div>
+  </div>
+  <div class="stat-card">
+    <div class="number pass">151</div>
+    <div class="label">通过</div>
+  </div>
+  <div class="stat-card">
+    <div class="number fail">0</div>
+    <div class="label">失败</div>
+  </div>
+</div>
+
+<div class="progress-label">
+  <span>总通过率</span><span style="color:#4ade80;font-weight:700;">100%</span>
+</div>
+<div class="bar"><div class="bar-fill bar-pass" style="width:100%"></div></div>
+
+<div class="summary-grid">
+<div class="card">
+  <h2><span class="icon">☕</span> 后端测试 <span class="badge badge-pass">106/106</span></h2>
+  <div class="bar"><div class="bar-fill bar-pass" style="width:100%"></div></div>
+  <table>
+    <tr><th>测试套件</th><th>数量</th><th>状态</th></tr>
+    <tr><td>JwtUtilTest</td><td>19</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>TokenBlacklistTest</td><td>6</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>UserServiceImplTest</td><td>24</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>AuthControllerTest</td><td>16</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>StockControllerTest</td><td>16</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>StockServiceTest</td><td>7</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>UserControllerTest</td><td>18</td><td><span class="badge badge-pass">通过</span></td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h2><span class="icon">🎨</span> 前端测试 <span class="badge badge-pass">45/45</span></h2>
+  <div class="bar"><div class="bar-fill bar-pass" style="width:100%"></div></div>
+  <table>
+    <tr><th>测试套件</th><th>数量</th><th>状态</th></tr>
+    <tr><td>debounce.test.js (防抖/节流)</td><td>9</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>cache.test.js (缓存工具)</td><td>11</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>api-helpers.test.js (API)</td><td>12</td><td><span class="badge badge-pass">通过</span></td></tr>
+    <tr><td>router.test.js (路由守卫)</td><td>13</td><td><span class="badge badge-pass">通过</span></td></tr>
+  </table>
+</div>
+</div>
+
+<div class="card">
+  <h2><span class="icon">📋</span> 测试覆盖功能清单</h2>
+  <table>
+    <tr><th>分类</th><th>功能模块</th><th>测试内容</th></tr>
+    <tr><td>🔐 认证</td><td>登录/注册/刷新/退出</td><td>成功/失败场景、Token管理、账号锁定、Rotation机制</td></tr>
+    <tr><td>📦 库存</td><td>入库/出库/移库/库位</td><td>CRUD操作、边界条件、错误处理</td></tr>
+    <tr><td>👤 用户</td><td>用户管理/密码/权限</td><td>CRUD、密码修改/重置、状态管理、角色权限</td></tr>
+    <tr><td>🔑 JWT</td><td>Token生成/验证/jti/刷新</td><td>生成解析、过期检测、唯一标识、Refresh Token</td></tr>
+    <tr><td>🚫 黑名单</td><td>Token失效机制</td><td>添加/检查/过期清理、并发安全</td></tr>
+    <tr><td>🧰 工具</td><td>防抖/节流/缓存</td><td>函数行为、参数传递、过期策略</td></tr>
+    <tr><td>🚦 路由</td><td>路由守卫/权限控制</td><td>认证检查、角色校验、异常处理</td></tr>
+    <tr><td>🌐 API</td><td>HTTP方法/请求封装</td><td>get/post/put/del导出、模块完整性</td></tr>
+  </table>
+</div>
+
+<div class="footer">
+  SmartVision Stock — 智能仓储管理系统 · 自动化测试报告 · 通过率 100%
+</div>
+</div>
+</body>
+</html>
