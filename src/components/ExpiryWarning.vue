@@ -140,7 +140,7 @@ const processForm = reactive({ action: '', remark: '' })
 const loadData = async () => {
   try {
     const result = await expiryApi.checkExpiringProducts(daysThreshold.value)
-    let data = result.data || result || []
+    let data = Array.isArray(result?.data) ? result.data : (Array.isArray(result) ? result : [])
     if (searchKeyword.value) {
       const kw = searchKeyword.value.toLowerCase()
       data = data.filter(item =>

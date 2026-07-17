@@ -354,7 +354,7 @@ const getGradePercent = (grade) => {
 const loadReturns = async () => {
   try {
     const res = await returnApi.getReturnRequests(statusFilter.value)
-    returnRequests.value = res.data || []
+    returnRequests.value = res.data?.data || res.data?.content || res.data || []
   } catch (error) {
     returnRequests.value = []
   }

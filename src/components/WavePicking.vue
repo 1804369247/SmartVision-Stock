@@ -185,7 +185,7 @@ const formatTime = (timestamp) => {
 const loadActiveWaves = async () => {
   try {
     const res = await pickApi.getActiveWaves()
-    activeWaves.value = res.data || []
+    activeWaves.value = res.data?.data || res.data?.content || res.data || []
   } catch (error) {
     ElMessage.error('加载活动波次失败')
     activeWaves.value = []
@@ -195,7 +195,7 @@ const loadActiveWaves = async () => {
 const loadPickTasks = async () => {
   try {
     const res = await pickApi.getPickTasks(currentWaveId.value || undefined)
-    pickTasks.value = res.data || []
+    pickTasks.value = res.data?.data || res.data?.content || res.data || []
   } catch (error) {
     ElMessage.error('加载拣货任务失败')
     pickTasks.value = []

@@ -290,8 +290,8 @@ const loadReportData = async () => {
         page: pagination.value.page,
         size: pagination.value.size
       })
-      reportData.value = res.data || []
-      pagination.value.total = res.total || 0
+      reportData.value = res.data?.data || res.data?.content || res.data || []
+      pagination.value.total = res.total || res.data?.totalElements || 0
       emptyText.value = '暂无数据'
     } else if (currentReport.value === 'flow') {
       const res = await reportApi.getInoutFlowReport({
@@ -300,14 +300,14 @@ const loadReportData = async () => {
         page: pagination.value.page,
         size: pagination.value.size
       })
-      reportData.value = res.data || []
+      reportData.value = res.data?.data || res.data?.content || res.data || []
       pagination.value.total = res.total || 0
       emptyText.value = '暂无数据'
     } else if (currentReport.value === 'utilization') {
       const res = await reportApi.getUtilizationReport({
         area: selectedArea.value || undefined
       })
-      reportData.value = res.data || []
+      reportData.value = res.data?.data || res.data?.content || res.data || []
       pagination.value.total = reportData.value.length
       if (res.summary) {
         kpiData.value = { ...kpiData.value, ...res.summary }
@@ -315,7 +315,7 @@ const loadReportData = async () => {
       emptyText.value = '暂无数据'
     } else if (currentReport.value === 'alert') {
       const res = await reportApi.getAlertsReport()
-      reportData.value = res.data || []
+      reportData.value = res.data?.data || res.data?.content || res.data || []
       pagination.value.total = reportData.value.length
       if (res.summary) {
         kpiData.value = { ...kpiData.value, ...res.summary }

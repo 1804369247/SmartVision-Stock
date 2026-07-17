@@ -168,6 +168,17 @@ const loadLogs = async (page = 1) => {
         detail: log.detail || '-',
       }))
       pagination.total = data.totalElements || data.content.length
+    } else if (Array.isArray(data?.data)) {
+      // 兼容 { total, data } 结构
+      logList.value = data.data.map(log => ({
+        ...log,
+        operateTime: formatDateTime(log.operateTime),
+        operatorName: log.operatorName || log.operatorId || '-',
+        operationType: log.operationType || '-',
+        module: log.module || '-',
+        detail: log.detail || '-',
+      }))
+      pagination.total = data.total || data.data.length
     } else if (Array.isArray(data)) {
       // 兼容直接返回数组的情况
       logList.value = data.map(log => ({

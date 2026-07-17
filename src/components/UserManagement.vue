@@ -203,11 +203,11 @@ const loadUsers = async (page = 1) => {
   const params = { page: page - 1, size: pagination.size, ...searchForm }
   const res = await systemApi.getUsers(params)
   if (res && res.code === 200) {
-    userList.value = res.data.map(u => ({
+    userList.value = (res.data?.data || []).map(u => ({
       ...u,
       roleName: roles.value.find(r => r.id === u.roleId)?.name || ''
     }))
-    pagination.total = res.total
+    pagination.total = res.data?.total || 0
     pagination.page = page
   }
 }
@@ -215,7 +215,7 @@ const loadUsers = async (page = 1) => {
 const loadRoles = async () => {
   const res = await systemApi.getAllRoles()
   if (res && res.code === 200) {
-    roles.value = res.data
+    roles.value = res.data?.data || res.data || []
   }
 }
 
@@ -223,8 +223,8 @@ const loadRoleList = async (page = 1) => {
   const params = { page: page - 1, size: rolePagination.size, name: roleSearch.value }
   const res = await systemApi.getRoles(params)
   if (res && res.code === 200) {
-    roleList.value = res.data
-    rolePagination.total = res.total
+    roleList.value = res.data?.data || res.data || []
+    rolePagination.total = res.data?.total || 0
     rolePagination.page = page
   }
 }

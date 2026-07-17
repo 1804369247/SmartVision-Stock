@@ -124,7 +124,7 @@
               <el-table-column v-if="currentSubPage === 'outbound'" prop="goodsInstanceId" label="库存批次" width="150">
                 <template #default="scope">
                   <el-select v-model="scope.row.goodsInstanceId" placeholder="选择批次" size="default" style="width:100%">
-                    <el-option v-for="i in goodsInstances" :key="i.id" :label="i.batchNo + '(' + i.quantity + '件)'" :value="i.id" />
+                    <el-option v-for="i in goodsInstances" :key="i.id ?? i.batchNo" :label="(i.batchNo || '') + '(' + (i.quantity || 0) + '件)'" :value="i.id ?? ''" />
                   </el-select>
                 </template>
               </el-table-column>
@@ -346,8 +346,8 @@ const refreshData = async () => {
         locationApi.getAll(),
         stockApi.getInstances({ size: 1000 })
       ])
-      suppliers.value = supResult.suppliers || supResult.data || supResult || []
-      goodsList.value = Array.isArray(goodsResult) ? goodsResult : (goodsResult.data || [])
+      suppliers.value = supResult.data?.content || supResult.data || supResult || []
+      goodsList.value = Array.isArray(goodsResult) ? goodsResult : (goodsResult.data?.content || goodsResult.data || [])
       emptyLocations.value = (Array.isArray(locResult) ? locResult : (locResult.data || [])).filter(l => l.status === 0)
       goodsInstances.value = Array.isArray(instResult) ? instResult : (instResult.data?.content || instResult.data || [])
 

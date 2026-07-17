@@ -261,7 +261,7 @@ const getStatusText = (status) => {
 const loadWarehouses = async () => {
   try {
     const res = await warehouseApi.getAllWarehouses()
-    warehouses.value = res.data || []
+    warehouses.value = res.data?.data || res.data?.content || res.data || []
   } catch (error) {
     warehouses.value = []
   }
@@ -270,7 +270,7 @@ const loadWarehouses = async () => {
 const loadTransferRequests = async () => {
   try {
     const res = await warehouseApi.getTransferRequests(transferStatus.value)
-    transferRequests.value = res.data || []
+    transferRequests.value = res.data?.data || res.data?.content || res.data || []
   } catch (error) {
     transferRequests.value = []
   }
