@@ -235,9 +235,11 @@ const viewModeTagType = computed(() => {
 const goodsList = ref([])
 const loadGoodsList = async () => {
   try {
-    const res = await goodsApi.getAll()
+    const res = await goodsApi.getAll({ size: 1000 })
     if (res?.data) {
-      goodsList.value = Array.isArray(res.data) ? res.data : (res.data.content || [])
+      // 兼容 LIST / PAGE.content / OBJ.data
+      const data = res.data
+      goodsList.value = Array.isArray(data) ? data : (data.content || data.data || [])
     }
   } catch (e) {
     // 后端不可用则使用模拟数据

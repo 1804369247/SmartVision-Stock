@@ -933,8 +933,10 @@ export function useStockScene(viewMode, viewZone) {
 
   const loadLocations = async () => {
     try {
-      const res = await get('/locations');
-      const locations = Array.isArray(res) ? res : (res?.data ? (Array.isArray(res.data) ? res.data : []) : []);
+      const res = await get('/locations', { size: 1000 });
+      // 兼容三种返回：LIST / OBJ.data / PAGE.content
+      const data = res?.data || res || []
+      const locations = Array.isArray(data) ? data : (data.content || [])
 
       shelves.value.forEach(zoneData => {
         zoneData.cells.forEach(cell => {
