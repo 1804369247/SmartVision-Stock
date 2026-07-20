@@ -18,7 +18,8 @@ export const pickApi = {
 
   /** 获取波次下的拣货任务列表 */
   getPickTasks(waveId) {
-    return get(`/pick/tasks?waveId=${waveId}`)
+    // 仅在 waveId 有效时携带该参数，避免拼出 waveId=undefined
+    return get('/pick/tasks', waveId != null && waveId !== '' ? { waveId } : {})
   },
 
   /** 获取单个拣货任务详情 */

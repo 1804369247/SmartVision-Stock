@@ -97,13 +97,10 @@ const loadRecords = async () => {
     if (searchForm.goodsName) params.goodsName = searchForm.goodsName
     if (searchForm.type) params.type = searchForm.type
     const res = await logApi.getInoutRecords(params)
-    if (res && res.data) {
-      records.value = res.data.content || []
-      pagination.total = res.data.totalElements || 0
-    } else {
-      records.value = res?.content || []
-      pagination.total = res?.totalElements || 0
-    }
+    // 兼容三种返回结构：PAGE.content / OBJ.data / LIST
+    const d = res?.data ?? res
+    records.value = Array.isArray(d) ? d : (d?.content || d?.data || [])
+    pagination.total = d?.totalElements || d?.total || (Array.isArray(records.value) ? records.value.length : 0)
   } catch (e) {
     console.error('loadRecords error:', e)
     ElMessage.error('加载记录失败，请检查后端服务')

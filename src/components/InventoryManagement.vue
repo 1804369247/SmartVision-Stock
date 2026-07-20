@@ -141,12 +141,12 @@
         <el-form :model="transferForm" label-width="80px" size="small">
           <el-form-item label="源库位">
             <el-select v-model="transferForm.sourceLocationId" placeholder="请选择源库位">
-              <el-option v-for="l in occupiedLocations" :key="l.id" :label="l.locationCode + ' - ' + l.goodsName" :value="l.id" />
+              <el-option v-for="l in occupiedLocations" :key="l.id ?? l.locationCode" :label="l.locationCode + ' - ' + l.goodsName" :value="l.id ?? ''" />
             </el-select>
           </el-form-item>
           <el-form-item label="目标库位">
             <el-select v-model="transferForm.targetLocationId" placeholder="请选择目标库位">
-              <el-option v-for="l in emptyLocations" :key="l.id" :label="l.locationCode" :value="l.id" />
+              <el-option v-for="l in emptyLocations" :key="l.id ?? l.locationCode" :label="l.locationCode" :value="l.id ?? ''" />
             </el-select>
           </el-form-item>
           <el-form-item label="转移数量">
@@ -235,8 +235,10 @@ const totalDiff = computed(() => {
 
 const refreshData = async () => {
   try {
-    const res = await locationApi.getAll()
-    tableData.value = Array.isArray(res) ? res : (res.data?.content || res.data || [])
+    const res = await locationApi.getAll({ size: 1000 })
+    // 兼容三种返回结构：LIST / PAGE.content / OBJ.data
+    const _d = res?.data ?? res
+    tableData.value = Array.isArray(_d) ? _d : (_d?.content || _d?.data || [])
     
     warningData.value = []
     tableData.value.forEach(loc => {

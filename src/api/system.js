@@ -63,8 +63,8 @@ export const systemApi = {
     return get('/system/roles', params)
   },
   
-  getAllRoles() {
-    return get('/system/roles/all')
+  getAllRoles(params = {}) {
+    return get('/system/roles/all', params)
   },
   
   getRole(id) {

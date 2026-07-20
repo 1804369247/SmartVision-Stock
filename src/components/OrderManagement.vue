@@ -67,7 +67,7 @@
               <el-col :span="12">
                 <el-form-item :label="currentSubPage === 'inbound' ? '供应商' : '客户'">
                   <el-select v-model="orderForm.supplierId" placeholder="请选择" clearable filterable style="width:100%">
-                    <el-option v-for="s in suppliers" :key="s.id" :label="s.name" :value="s.id" />
+                    <el-option v-for="s in suppliers" :key="s.id ?? s.name" :label="s.name" :value="s.id ?? ''" />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -94,7 +94,7 @@
               <el-table-column prop="goodsId" label="商品名称" min-width="180">
                 <template #default="scope">
                   <el-select v-model="scope.row.goodsId" placeholder="选择商品" filterable size="default" style="width:100%">
-                    <el-option v-for="g in goodsList" :key="g.id" :label="g.name" :value="g.id">
+                    <el-option v-for="g in goodsList" :key="g.id ?? g.code" :label="g.name" :value="g.id ?? ''">
                       <span>{{ g.name }}</span>
                       <span style="color:#999;font-size:11px;float:right">{{ g.code || '' }}</span>
                     </el-option>
@@ -114,7 +114,7 @@
               <el-table-column v-if="currentSubPage === 'inbound'" prop="locationId" label="目标库位" width="140">
                 <template #default="scope">
                   <el-select v-model="scope.row.locationId" placeholder="选择库位" filterable size="default" style="width:100%">
-                    <el-option v-for="l in emptyLocations" :key="l.id" :label="l.locationCode" :value="l.id">
+                    <el-option v-for="l in emptyLocations" :key="l.id ?? l.locationCode" :label="l.locationCode" :value="l.id ?? ''">
                       <span>{{ l.locationCode }}</span>
                       <el-tag size="small" type="info" style="margin-left:4px">{{ l.area || '' }}区</el-tag>
                     </el-option>
@@ -341,22 +341,28 @@ const refreshData = async () => {
   try {
     if (currentSubPage.value === 'inbound' || currentSubPage.value === 'outbound') {
       const [supResult, goodsResult, locResult, instResult] = await Promise.all([
-        basicApi.getSuppliers(),
-        goodsApi.getAll(),
-        locationApi.getAll(),
+        basicApi.getSuppliers({ size: 1000 }),
+        goodsApi.getAll({ size: 1000 }),
+        locationApi.getAll({ size: 1000 }),
         stockApi.getInstances({ size: 1000 })
       ])
-      suppliers.value = supResult.data?.content || supResult.data || supResult || []
-      goodsList.value = Array.isArray(goodsResult) ? goodsResult : (goodsResult.data?.content || goodsResult.data || [])
-      emptyLocations.value = (Array.isArray(locResult) ? locResult : (locResult.data || [])).filter(l => l.status === 0)
-      goodsInstances.value = Array.isArray(instResult) ? instResult : (instResult.data?.content || instResult.data || [])
+      // 兼容三种返回结构：LIST / PAGE.content / OBJ.data
+      const norm = (r) => {
+        const d = r?.data ?? r
+        return Array.isArray(d) ? d : (d?.content || d?.data || [])
+      }
+      suppliers.value = norm(supResult)
+      goodsList.value = norm(goodsResult)
+      emptyLocations.value = norm(locResult).filter(l => l.status === 0)
+      goodsInstances.value = norm(instResult)
 
       // 获取订单列表计算统计数据
       const listApi = currentSubPage.value === 'inbound'
         ? orderApi.getInboundList({ page: 0, size: 50 })
         : orderApi.getOutboundList({ page: 0, size: 50 })
       const listResult = await listApi
-      const orderList = listResult.content || listResult.data?.content || []
+      const _ld = listResult?.data ?? listResult
+      const orderList = Array.isArray(_ld) ? _ld : (_ld?.content || _ld?.data || [])
       const today = new Date().toDateString()
       todayCount.value = orderList.filter(o => new Date(o.createTime).toDateString() === today).length
       pendingCount.value = orderList.filter(o => o.status === 'DRAFT' || o.status === 'AUDITING').length
@@ -366,7 +372,8 @@ const refreshData = async () => {
         ? orderApi.getInboundList({ page: 0, size: 50 })
         : orderApi.getOutboundList({ page: 0, size: 50 })
       const result = await api
-      let data = result.content || result.data?.content || []
+      const _rd = result?.data ?? result
+      let data = Array.isArray(_rd) ? _rd : (_rd?.content || _rd?.data || [])
       // 前端过滤：关键词 + 状态
       if (searchKeyword.value?.trim()) {
         const k = searchKeyword.value.trim().toLowerCase()
@@ -379,7 +386,7 @@ const refreshData = async () => {
       }
       tableData.value = data
       // 从实际订单数据更新统计
-      const fullList = result.content || result.data?.content || []
+      const fullList = Array.isArray(_rd) ? _rd : (_rd?.content || _rd?.data || [])
       todayCount.value = fullList.length
       pendingCount.value = fullList.filter(o => o.status === 'DRAFT' || o.status === 'AUDITING').length
       completedCount.value = fullList.filter(o => o.status === 'COMPLETED').length

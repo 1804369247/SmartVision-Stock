@@ -213,9 +213,10 @@ const loadData = async () => {
     if (filterStatus.value !== '') params.status = filterStatus.value
 
     const result = await stockCountApi.getList(params)
-    const data = result.data || result
-    tableData.value = data.content || data
-    totalElements.value = data.totalElements || data.length || 0
+    // 兼容三种返回结构：PAGE.content / OBJ.data / LIST
+    const data = result?.data ?? result
+    tableData.value = Array.isArray(data) ? data : (data?.content || data?.data || [])
+    totalElements.value = data?.totalElements || data?.total || (Array.isArray(tableData.value) ? tableData.value.length : 0)
   } catch (e) {
     ElMessage.error('加载失败')
   }

@@ -243,15 +243,10 @@ const build3DModel = (model) => {
 // ---- API 操作 ----
 const loadModels = async () => {
   try {
-    const data = await modelApi.listModels({ page: 0, size: 20, name: searchName.value })
-
-    if (data && data.length !== undefined) {
-      models.value = data
-    } else if (data && data.data) {
-      models.value = data.data
-    } else {
-      models.value = Array.isArray(data) ? data : []
-    }
+    const res = await modelApi.listModels({ page: 0, size: 1000, name: searchName.value })
+    // 兼容三种返回结构：LIST / PAGE.content / OBJ.data
+    const d = res?.data ?? res
+    models.value = Array.isArray(d) ? d : (d?.content || d?.data || [])
   } catch (e) {
     ElMessage.error('加载模型失败')
   }

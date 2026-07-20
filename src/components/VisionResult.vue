@@ -98,8 +98,11 @@
 
 <script setup>
 import { ref, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { visionApi } from '../api/vision'
+
+const router = useRouter()
 
 const recognitionResult = ref(null)
 const showReconstruction = ref(false)
@@ -119,7 +122,7 @@ const startRecognition = async () => {
     const result = await visionApi.recognize(uploadId, 4)
     
     if (result.code === 200) {
-      recognitionResult.value = result
+      recognitionResult.value = result.data ?? result
       ElMessage.success('识别完成')
     } else {
       ElMessage.error(result.message || '识别失败')
@@ -144,7 +147,7 @@ const startReconstruction = async () => {
     
     if (result.code === 200) {
       showReconstruction.value = true
-      pollProgress(result.taskId)
+      pollProgress(result.data?.taskId ?? result.taskId)
     } else {
       ElMessage.error(result.message || '重建启动失败')
     }
@@ -158,14 +161,15 @@ const pollProgress = async (taskId) => {
     try {
       const result = await visionApi.getReconstructionProgress(taskId)
       
-      if (result.code === 200 || result.taskId) {
-        reconstructionProgress.value = result
+      const _p = result.data ?? result
+      if (result.code === 200 || _p.taskId) {
+        reconstructionProgress.value = _p
         
-        if (result.status === 'COMPLETED' || result.status === 'FAILED' || result.status === 'CANCELLED') {
+        if (_p.status === 'COMPLETED' || _p.status === 'FAILED' || _p.status === 'CANCELLED') {
           clearInterval(progressInterval)
-          if (result.status === 'COMPLETED') {
+          if (_p.status === 'COMPLETED') {
             ElMessage.success('三维重建完成')
-          } else if (result.status === 'FAILED') {
+          } else if (_p.status === 'FAILED') {
             ElMessage.error('三维重建失败')
           }
         }
@@ -205,7 +209,8 @@ const exportResult = () => {
 
 const viewModel = () => {
   showReconstruction.value = false
-  ElMessage.info('即将跳转到模型预览页面')
+  const modelId = reconstructionProgress.value?.modelId
+  router.push(modelId ? { name: 'model', query: { modelId } } : { name: 'model' })
 }
 
 onUnmounted(() => {

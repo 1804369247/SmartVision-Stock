@@ -211,6 +211,7 @@ const uploadAndRecognize = async () => {
 
     // 处理识别结果
     recognitionResult.value = {
+      code: 200,
       success: true,
       data: recogResult?.data || recogResult || { text: '识别完成，暂无结构化数据' },
       message: '识别成功',

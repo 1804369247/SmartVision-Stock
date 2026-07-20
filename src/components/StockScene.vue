@@ -267,7 +267,7 @@ const detailVisible = ref(false)
 const detailData = reactive({
   code: '', zone: '', row: 0, col: 0, level: 0,
   status: 0, statusKey: 'empty',
-  locationId: null, goodsName: '', quantity: 0, attribute: '', batchNo: '',
+  locationId: null, goodsId: null, goodsName: '', quantity: 0, attribute: '', batchNo: '',
   _mesh: null,
 })
 
@@ -307,7 +307,7 @@ const switchToInbound = () => {
 }
 const switchToOutbound = () => {
   activeTab.value = 'outbound'
-  outboundForm.quantity = Math.min(detailData.quantity || 1, detailData.quantity || 1)
+  outboundForm.quantity = detailData.quantity || 1
   outboundForm.customer = ''
   outboundForm.remark = `从 ${detailData.code} 出库`
 }
@@ -380,7 +380,7 @@ const doQuickOutbound = async () => {
     await stockApi.outbound({
       locationId: detailData.locationId,
       locationCode: detailData.code,
-      goodsId: detailData._mesh?.userData?.goodsId,
+      goodsId: detailData.goodsId ?? detailData._mesh?.userData?.goodsId,
       quantity: outboundForm.quantity,
       customer: outboundForm.customer || undefined,
       remark: outboundForm.remark || undefined,
@@ -490,6 +490,7 @@ const selectCell = (mesh) => {
     status: ud.status || 0,
     statusKey: getStatusKey(ud.status, ud.quantity),
     locationId: ud.locationId,
+    goodsId: ud.goodsId ?? null,
     goodsName: ud.goodsName || '',
     quantity: ud.quantity || 0,
     attribute: ud.attribute || '',

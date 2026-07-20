@@ -2,8 +2,8 @@ import { get, post, put, del } from './index-helpers'
 
 export const warehouseApi = {
   /** 获取所有仓库 */
-  getAllWarehouses() {
-    return get('/warehouses')
+  getAllWarehouses(params = {}) {
+    return get('/warehouses', params)
   },
 
   /** 获取仓库详情 */

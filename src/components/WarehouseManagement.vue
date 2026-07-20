@@ -260,7 +260,7 @@ const getStatusText = (status) => {
 
 const loadWarehouses = async () => {
   try {
-    const res = await warehouseApi.getAllWarehouses()
+    const res = await warehouseApi.getAllWarehouses({ size: 1000 })
     warehouses.value = res.data?.data || res.data?.content || res.data || []
   } catch (error) {
     warehouses.value = []
@@ -345,7 +345,9 @@ const viewWarehouse = (id) => {
 const viewInventory = async (warehouseId) => {
   try {
     const res = await warehouseApi.getWarehouseInventory(warehouseId)
-    currentInventory.value = res.data?.inventory || []
+    // 兼容 OBJ.inventory / PAGE.content / OBJ.data / LIST
+    const d = res?.data ?? res
+    currentInventory.value = d?.inventory || d?.content || d?.data || (Array.isArray(d) ? d : [])
   } catch (error) {
     currentInventory.value = []
   }

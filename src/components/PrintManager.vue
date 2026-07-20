@@ -295,13 +295,13 @@
             <div class="form-row" v-if="qrType === 'goods'">
               <span class="form-label">选择货物:</span>
               <el-select v-model="selectedGoodsId" placeholder="选择货物" filterable size="default" style="width:320px;" @change="generateGoodsQr">
-                <el-option v-for="g in goodsList" :key="g.id" :label="`${g.name} (${g.code || '-'})`" :value="g.id" />
+                <el-option v-for="g in goodsList" :key="g.id ?? g.code" :label="`${g.name} (${g.code || '-'})`" :value="g.id ?? ''" />
               </el-select>
             </div>
             <div class="form-row" v-if="qrType === 'location'">
               <span class="form-label">选择库位:</span>
               <el-select v-model="selectedLocationId" placeholder="选择库位" filterable size="default" style="width:320px;" @change="generateLocationQr">
-                <el-option v-for="l in locationList" :key="l.id" :label="`${l.locationCode} - ${l.area}区`" :value="l.id" />
+                <el-option v-for="l in locationList" :key="l.id ?? l.locationCode" :label="`${l.locationCode} - ${l.area}区`" :value="l.id ?? ''" />
               </el-select>
             </div>
             <div class="form-row">
@@ -359,7 +359,7 @@
       <el-form :model="labelForm" label-width="100px" size="default">
         <el-form-item label="选择货物">
           <el-select v-model="labelForm.goodsId" filterable placeholder="搜索货物" style="width:100%;">
-            <el-option v-for="g in goodsList" :key="g.id" :label="`${g.name} (编码:${g.code || '-'})`" :value="g.id" />
+            <el-option v-for="g in goodsList" :key="g.id ?? g.code" :label="`${g.name} (编码:${g.code || '-'})`" :value="g.id ?? ''" />
           </el-select>
         </el-form-item>
         <el-form-item label="打印数量">
@@ -386,7 +386,7 @@
       <el-form :model="locationLabelForm" label-width="100px" size="default">
         <el-form-item label="选择库位">
           <el-select v-model="locationLabelForm.locationId" filterable placeholder="搜索库位" style="width:100%;">
-            <el-option v-for="l in locationList" :key="l.id" :label="`${l.locationCode} - ${l.area}区${l.attribute || ''}`" :value="l.id" />
+            <el-option v-for="l in locationList" :key="l.id ?? l.locationCode" :label="`${l.locationCode} - ${l.area}区${l.attribute || ''}`" :value="l.id ?? ''" />
           </el-select>
         </el-form-item>
         <el-form-item label="打印数量">
@@ -421,7 +421,7 @@
         <el-form-item label="单号">
           <el-select v-model="orderPrintForm.orderId" filterable placeholder="输入或选择单号" style="width:100%;" allow-create>
             <!-- 动态加载订单列表 -->
-            <el-option v-for="o in orderList" :key="o.id" :label="`${o.orderNo}`" :value="o.id" />
+            <el-option v-for="o in orderList" :key="o.id ?? o.orderNo" :label="`${o.orderNo}`" :value="o.id ?? ''" />
           </el-select>
         </el-form-item>
         <el-form-item label="副本数">
@@ -474,6 +474,7 @@ import { printApi, qrCodeApi } from '@/api/print'
 import { exportApi } from '@/api/export'
 import { goodsApi } from '@/api/goods'
 import { locationApi } from '@/api/location'
+import { orderApi } from '@/api/order'
 
 const escapeHtml = (str) => {
   if (!str) return ''
@@ -499,9 +500,11 @@ const refreshPrinters = async () => {
   loadingPrinters.value = true
   try {
     const res = await printApi.getPrinters()
-    // 模拟数据（后端可能未实现）
-    if (res && Array.isArray(res.data)) {
-      printerList.value = res.data
+    // 兼容三种返回结构：LIST / PAGE.content / OBJ.data
+    const _d = res?.data ?? res
+    const _list = Array.isArray(_d) ? _d : (_d?.content || _d?.data || [])
+    if (_list.length > 0) {
+      printerList.value = _list
     } else {
       // 使用模拟打印机列表
       printerList.value = [
@@ -1025,16 +1028,17 @@ const doPrintInventory = () => {
 const loadBaseData = async () => {
   try {
     const [goodsRes, locRes] = await Promise.allSettled([
-      goodsApi.getAll(),
-      locationApi.getAll(),
+      goodsApi.getAll({ size: 1000 }),
+      locationApi.getAll({ size: 1000 }),
     ])
+    // 兼容三种返回结构：LIST / PAGE.content / OBJ.data
     if (goodsRes.status === 'fulfilled' && goodsRes.value?.data) {
       const d = goodsRes.value.data
-      goodsList.value = Array.isArray(d) ? d : (d.content || [])
+      goodsList.value = Array.isArray(d) ? d : (d.content || d.data || [])
     }
     if (locRes.status === 'fulfilled' && locRes.value?.data) {
       const d = locRes.value.data
-      locationList.value = Array.isArray(d) ? d : []
+      locationList.value = Array.isArray(d) ? d : (d.content || d.data || [])
     }
     // 如果API没有返回数据，使用模拟数据填充
     if (goodsList.value.length === 0) {
@@ -1061,9 +1065,28 @@ const loadBaseData = async () => {
   }
 }
 
+// 加载可打印的单据（出入库单）
+const loadOrderList = async () => {
+  try {
+    const [inRes, outRes] = await Promise.allSettled([
+      orderApi.getInboundList({ page: 0, size: 500 }),
+      orderApi.getOutboundList({ page: 0, size: 500 }),
+    ])
+    const pick = (r) => {
+      if (r.status !== 'fulfilled') return []
+      const d = r.value?.data ?? r.value
+      return Array.isArray(d) ? d : (d?.content || d?.data || [])
+    }
+    orderList.value = [...pick(inRes), ...pick(outRes)]
+  } catch (e) {
+    orderList.value = []
+  }
+}
+
 onMounted(() => {
   refreshPrinters()
   loadBaseData()
+  loadOrderList()
 })
 </script>
 

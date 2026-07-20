@@ -120,10 +120,11 @@ const loadData = async () => {
     if (filterRead.value !== '') params.isRead = filterRead.value
 
     const result = await notificationApi.getList(userId.value, params)
-    const data = result.data || result
-    tableData.value = data.content || data
-    totalElements.value = data.totalElements || data.length || 0
-    unreadCount.value = data.unreadCount || 0
+    // 兼容三种返回结构：PAGE.content / OBJ.data / LIST
+    const data = result?.data ?? result
+    tableData.value = Array.isArray(data) ? data : (data?.content || data?.data || [])
+    totalElements.value = data?.totalElements || data?.total || (Array.isArray(tableData.value) ? tableData.value.length : 0)
+    unreadCount.value = data?.unreadCount || 0
   } catch (e) {
     ElMessage.error('加载失败')
   }

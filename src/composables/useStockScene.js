@@ -935,8 +935,8 @@ export function useStockScene(viewMode, viewZone) {
     try {
       const res = await get('/locations', { size: 1000 });
       // 兼容三种返回：LIST / OBJ.data / PAGE.content
-      const data = res?.data || res || []
-      const locations = Array.isArray(data) ? data : (data.content || [])
+      const data = res?.data ?? res ?? []
+      const locations = Array.isArray(data) ? data : (data.content || data.data || [])
 
       shelves.value.forEach(zoneData => {
         zoneData.cells.forEach(cell => {
@@ -950,6 +950,7 @@ export function useStockScene(viewMode, viewZone) {
             Object.assign(cell.mesh.userData, {
               status: cell.status,
               locationId: match.id,
+              goodsId: match.goodsId ?? null,
               goodsName,
               batchNo: match.batchNo || '',
               quantity: qty,

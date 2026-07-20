@@ -86,11 +86,11 @@
         <el-card v-if="queryResult.code === 200" class="result-card">
           <template #header>
             <div class="card-header">
-              <span>{{ queryResult.type === 'goods' ? '📦 商品信息' : '📍 库位信息' }}</span>
+              <span>{{ queryResult.data.type === 'goods' ? '📦 商品信息' : '📍 库位信息' }}</span>
             </div>
           </template>
           
-          <div v-if="queryResult.type === 'goods'" class="goods-info">
+          <div v-if="queryResult.data.type === 'goods'" class="goods-info">
             <el-descriptions :column="2" border>
               <el-descriptions-item label="商品编码">{{ queryResult.data.code }}</el-descriptions-item>
               <el-descriptions-item label="商品名称">{{ queryResult.data.name }}</el-descriptions-item>
@@ -142,7 +142,7 @@
               <span>📍 {{ item.barcode }}</span>
             </template>
             <div>{{ item.result.type === 'goods' ? '📦 商品: ' : '📍 库位: ' }}
-              {{ item.result.type === 'goods' ? item.result.data.name : item.result.data.locationCode }}
+              {{ item.result.type === 'goods' ? item.result.name : item.result.locationCode }}
             </div>
           </el-card>
         </el-timeline-item>
@@ -301,9 +301,9 @@ const handleScanSuccess = async (barcode) => {
       data: result.data
     }
     
-    queryResult.value = result.data
+    queryResult.value = result
     
-    // 添加到历史
+    // 添加到历史（存 payload）
     scanHistory.value.unshift({
       barcode,
       result: result.data,

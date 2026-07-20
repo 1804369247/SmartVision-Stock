@@ -108,7 +108,7 @@
       <el-form :model="createForm">
         <el-form-item label="选择订单">
           <el-select v-model="createForm.orderIds" multiple placeholder="选择要拣货的订单" style="width: 100%">
-            <el-option v-for="order in availableOrders" :key="order.id" :label="order.orderNo" :value="order.id" />
+            <el-option v-for="order in availableOrders" :key="order.id ?? order.orderNo" :label="order.orderNo" :value="order.id ?? ''" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -137,9 +137,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { pickApi } from '../api/pick'
+import { orderApi } from '../api/order'
 
 const activeTab = ref('active')
 const activeWaves = ref([])
@@ -192,9 +193,34 @@ const loadActiveWaves = async () => {
   }
 }
 
-const loadPickTasks = async () => {
+// 加载可用于创建波次的出库单（已审核/待拣货，未完成/未取消）
+const loadAvailableOrders = async () => {
   try {
-    const res = await pickApi.getPickTasks(currentWaveId.value || undefined)
+    const res = await orderApi.getOutboundList({ page: 0, size: 1000 })
+    const d = res?.data ?? res
+    const list = Array.isArray(d) ? d : (d?.content || d?.data || [])
+    availableOrders.value = list.filter(o => {
+      const s = o.status
+      return s !== 'COMPLETED' && s !== 'CANCELLED'
+    })
+  } catch (error) {
+    availableOrders.value = []
+  }
+}
+
+// 打开创建对话框时刷新可选订单
+watch(showCreateDialog, (v) => {
+  if (v) loadAvailableOrders()
+})
+
+const loadPickTasks = async () => {
+  // 后端要求 waveId 必填，未选择波次时不请求，避免 500
+  if (!currentWaveId.value) {
+    pickTasks.value = []
+    return
+  }
+  try {
+    const res = await pickApi.getPickTasks(currentWaveId.value)
     pickTasks.value = res.data?.data || res.data?.content || res.data || []
   } catch (error) {
     ElMessage.error('加载拣货任务失败')
